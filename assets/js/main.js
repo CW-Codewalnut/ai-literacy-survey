@@ -21,51 +21,117 @@ function renderNav() {
     el("button", {class:"link", type:"button", onclick:App.signOut}, "Sign out")));
 }
 
+/* A still Tetris "well": letters are pieces, '.' empty, '_' the one gap that would clear the line */
+const PIECE = {T:"#8a6ff0", L:"#c98316", J:"#1c9bc4", S:"#3f9f57", Z:"#e25a4a", O:"#d4559a", I:"#6fd0f5"};
+const WELL = [
+  "...TTT....",
+  "....T.....",
+  "..........",
+  "..........",
+  "..........",
+  "..........",
+  "..........",
+  "I.........",
+  "I......SS.",
+  "I..OO.SS.L",
+  "IJ.OOZZ..L",
+  "JJJ.TZZ.LL",
+  "SS.TTTOOIJ",
+  ".SSLLLOO_J",
+  "ZZOOIIIIJJ"];
+function well() {
+  const g = el("div", {class:"well-grid", "aria-hidden":"true"});
+  WELL.forEach((row, r) => [...row.padEnd(10, ".")].forEach((ch, c) => {
+    if (ch === "_") g.append(el("i", {class:"gap"}));
+    else if (PIECE[ch]) g.append(el("i", {class:"b", style:`background:${PIECE[ch]}`}));
+    else g.append(el("i"));
+  }));
+  return el("div", {class:"well"}, g,
+    el("span", {class:"well-tag", style:"top:4%;right:6%"}, "▼ RAG pipelines"),
+    el("span", {class:"well-tag", style:"top:52%;left:6%;color:#ffd27a"}, "LEVEL 3 CLEAR!"),
+    el("div", {class:"well-hud"}, el("span", {}, "LEVEL", el("b", {}, "4 / 7")), el("span", {}, "BLOCKS", el("b", {}, "21")), el("span", {style:"text-align:right"}, "SCORE", el("b", {}, "04,150"))));
+}
+
 function renderSignIn() {
   const main = $("main"); main.textContent = "";
   const btn = el("button", {class:"btn gh big", type:"button", onclick:App.signIn}); btn.innerHTML = GH_ICON + " Sign in with GitHub";
-  main.append(el("div", {class:"hero"},
+  const laneCols = ["#4a5079", "#2f5f80", "#3592c0", "#6fd0f5"];
+  main.append(el("section", {class:"arcade"}, el("div", {class:"signin"},
     el("div", {},
-      el("h1", {}, "How deep is your AI stack?"),
-      el("p", {class:"muted"}, "A short, game-style self-check of AI skills, built by CodeWalnut. Topic blocks fall one at a time, and you drop each one into the lane that matches what you know today. There are no right or wrong answers."),
-      el("ul", {class:"how"},
-        el("li", {}, el("span", {}, "01"), el("span", {}, "Sign in with GitHub.")),
-        el("li", {}, el("span", {}, "02"), el("span", {}, "Your team's survey opens automatically.")),
-        el("li", {}, el("span", {}, "03"), el("span", {}, "A few minutes later, you get your AI literacy card."))),
-      btn,
-      el("p", {class:"faint", style:"font-size:13px;margin-top:14px"}, "Your individual answers are seen only by the survey administrators.")),
-    el("div", {},
-      el("div", {class:"stat-l", style:"margin-bottom:8px"}, "The four lanes"),
-      el("div", {class:"lanes-legend"}, ["Never heard of it", "Know a little", "Can implement it", "Confident / Expert"].map((l, i) => el("div", {class:"lv l" + i}, el("b", {}, i + 1), el("span", {}, l)))))));
+      el("div", {class:"eyebrow"}, "CODEWALNUT · AI LITERACY SURVEY"),
+      el("h1", {class:"title-xl glow"}, "How deep is your ", el("span", {class:"hl"}, "AI stack?")),
+      el("p", {class:"muted", style:"font-size:17px;max-width:46ch;margin:0"}, "A game-style self-check of your AI skills. Topics drop like Tetris blocks. You stack each one where it honestly belongs. No right or wrong answers."),
+      el("ul", {class:"steps"},
+        el("li", {}, el("span", {class:"n", style:"background:#1c9bc4"}, "1"), el("span", {}, "Sign in with GitHub")),
+        el("li", {}, el("span", {class:"n", style:"background:#c98316"}, "2"), el("span", {}, "Your team's survey loads automatically")),
+        el("li", {}, el("span", {class:"n", style:"background:#3f9f57"}, "3"), el("span", {}, "Clear every level and get your AI literacy card"))),
+      el("div", {class:"row", style:"gap:16px"}, btn, el("span", {class:"coin"}, "★ 1 PLAYER · NO TIMER")),
+      el("p", {class:"faint", style:"font-size:13px;margin-top:16px"}, "Your individual answers are seen only by the survey administrators."),
+      el("div", {class:"lane-strip"}, ["Never heard of it", "Know a little", "Can implement it", "Confident / Expert"].map((l, i) =>
+        el("div", {style:`border-top-color:${laneCols[i]}`}, el("b", {}, String(i + 1)), l)))),
+    well())));
+}
+
+function playerHeader(stats) {
+  const av = App.me.avatar ? el("img", {src:App.me.avatar, alt:""}) : el("div", {class:"avatar"});
+  return el("div", {class:"player"}, av,
+    el("div", {}, el("div", {class:"eyebrow"}, "PLAYER 1"), el("div", {class:"px", style:"font-size:22px;color:#fff"}, App.me.name || "@" + (App.me.gh || App.me.email)),
+      el("div", {class:"faint", style:"font-size:13px"}, "@" + (App.me.gh || App.me.email))),
+    el("span", {class:"spacer"}),
+    stats ? el("div", {class:"hiscore"}, stats.map(([l, v]) => el("div", {class:"hs"}, el("div", {class:"stat-l"}, l), el("div", {class:"stat-v"}, v)))) : null);
+}
+
+function cartridge(inv, r) {
+  const bank = App.bank(inv.category_id);
+  const p = r ? App.profileOf(r.answers, bank) : null;
+  const st = p ? App.stage(p.index)[0] : null;
+  return el("article", {class:"cart"},
+    el("div", {class:"cart-top"},
+      el("div", {class:"cart-blocks", "aria-hidden":"true"}, bank.sections.map(s => el("i", {style:`background:${s.color || "#5a5f8c"}`}))),
+      el("h3", {}, bank.cat.name), el("div", {class:"team"}, inv.teams.name),
+      r ? el("span", {class:"flag done"}, "★ CLEARED") : el("span", {class:"flag new"}, "NEW")),
+    el("div", {class:"cart-meta"},
+      el("div", {}, "Blocks", el("b", {}, bank.items.length)),
+      el("div", {}, "Levels", el("b", {}, bank.sections.length)),
+      el("div", {}, "Minutes", el("b", {}, String(App.minutesFor(bank.items.length))))),
+    p ? el("div", {class:"cart-score"}, el("span", {class:"stage-badge"}, "🏆 " + st), el("span", {class:"meter"}, el("i", {style:`width:${p.index}%`})), el("b", {}, p.index))
+      : el("div", {class:"cart-score faint", style:"font-size:13px"}, "Not played yet. Your score appears here."),
+    el("div", {class:"cart-actions"},
+      el("a", {class:"start", href:`#/survey/${inv.id}`}, r ? "▶ PLAY AGAIN" : "▶ PRESS START"),
+      r ? el("a", {class:"start alt", href:`#/result/${inv.id}`}, "MY CARD") : null));
 }
 
 async function renderHome() {
-  const main = $("main"); main.textContent = ""; main.append(el("div", {class:"loading"}, "Finding your surveys…"));
+  const main = $("main"); main.textContent = ""; main.append(el("div", {class:"loading"}, "Loading your surveys…"));
   const [invites, resp] = await Promise.all([App.myInvites(), App.myResponses()]);
   if (invites.length === 1 && !resp[invites[0].id] && !App.me.isAdmin) { location.hash = `#/survey/${invites[0].id}`; return; }
   main.textContent = "";
   if (!invites.length) {
     if (App.me.isAdmin) {
-      main.append(el("div", {class:"pagehead"}, el("div", {}, el("h1", {}, "Welcome back"), el("p", {}, "You're an admin. You haven't been invited to take a survey yourself."))),
-        el("div", {class:"row"}, el("a", {class:"btn primary", href:"#/admin/teams"}, "Open admin"), el("a", {class:"btn", href:"#/admin/reports"}, "Reports")));
+      main.append(el("section", {class:"arcade"}, playerHeader(),
+        el("div", {style:"margin-top:28px"}, el("div", {class:"eyebrow"}, "NO CARTRIDGES LOADED"),
+          el("h2", {class:"px", style:"font-size:24px;margin:8px 0;color:#fff"}, "You're an admin"),
+          el("p", {class:"muted", style:"max-width:60ch"}, "To take a survey yourself, invite your own GitHub username to a team and survey under Admin → Invitations. Your answers are kept out of team reports."),
+          el("div", {class:"row", style:"margin-top:16px"}, el("a", {class:"start", style:"flex:0 0 auto", href:"#/admin/invite"}, "▶ INVITE MYSELF"), el("a", {class:"start alt", href:"#/admin/teams"}, "OPEN ADMIN")))));
       return;
     }
     await App.sb.from("access_requests").upsert({user_id:App.me.uid, github_username:App.me.gh || null, email:App.me.email || null, display_name:App.me.name || null, requested_at:new Date().toISOString()}, {onConflict:"user_id"});
-    main.append(el("div", {class:"card", style:"max-width:640px;margin:20px auto;text-align:center;padding:32px"},
-      el("h1", {style:"margin-bottom:10px"}, "You're on the list"),
-      el("p", {class:"muted"}, `Signed in as @${App.me.gh || App.me.email}. We couldn't match you to a survey yet, so we've let the administrators know. Once they approve you, refresh this page and your survey will open.`),
-      el("p", {class:"faint", style:"font-size:13px"}, "Tip: if you were invited by email, that email needs to be the main email on your GitHub account. Otherwise, send your GitHub username to the person who invited you."),
-      el("button", {class:"btn", type:"button", onclick:() => location.reload()}, "Refresh")));
+    main.append(el("section", {class:"arcade", style:"text-align:center;padding:48px 32px"},
+      el("div", {class:"eyebrow"}, "PLAYER 1 · READY"),
+      el("h1", {class:"title-xl glow", style:"font-size:clamp(26px,4vw,42px)"}, "Waiting for ", el("span", {class:"hl"}, "player approval")),
+      el("p", {class:"muted", style:"max-width:56ch;margin:0 auto"}, `Signed in as @${App.me.gh || App.me.email}. We couldn't match you to a survey yet, so the administrators have been notified. Once they approve you, refresh this page and your survey loads.`),
+      el("p", {class:"faint", style:"font-size:13px;max-width:56ch;margin:14px auto"}, "Invited by email? That email must be the main email on your GitHub account. Otherwise, send your GitHub username to the person who invited you."),
+      el("button", {class:"start", style:"flex:0 0 auto;margin-top:8px", type:"button", onclick:() => location.reload()}, "↻ REFRESH")));
     return;
   }
-  main.append(el("div", {class:"pagehead"}, el("div", {}, el("h1", {}, "My surveys"), el("p", {}, "Surveys you've been invited to."))),
-    el("div", {class:"survey-list"}, invites.map(i => {
-      const r = resp[i.id]; const cat = App.cat[i.category_id];
-      return el("div", {class:"survey-item"},
-        el("div", {class:"meta"}, el("b", {}, cat.name), el("div", {class:"faint", style:"font-size:13px"}, i.teams.name + (r ? ` · completed ${App.fmtDate(r.submitted_at)}` : " · not started"))),
-        r ? el("a", {class:"btn", href:`#/result/${i.id}`}, "My result") : null,
-        el("a", {class:"btn primary", href:`#/survey/${i.id}`}, r ? "Retake" : "Start"));
-    })));
+  const done = invites.filter(i => resp[i.id]);
+  const scores = done.map(i => App.profileOf(resp[i.id].answers, App.bank(i.category_id)).index);
+  const best = scores.length ? Math.max(...scores) : null;
+  main.append(el("section", {class:"arcade"},
+    playerHeader([["Cleared", `${done.length}/${invites.length}`], ["Best score", best == null ? "–" : String(best)], ["Stage", best == null ? "–" : App.stage(best)[0].replace("AI ", "")]]),
+    el("div", {style:"margin-top:30px"}, el("div", {class:"eyebrow"}, "SELECT YOUR SURVEY"),
+      el("h1", {class:"px glow", style:"font-size:clamp(24px,3.2vw,34px);color:#fff;margin:6px 0 0"}, invites.length > 1 ? "Choose a cartridge" : "Your cartridge is ready")),
+    el("div", {class:"carts"}, invites.map(i => cartridge(i, resp[i.id])))));
 }
 
 async function route() {
