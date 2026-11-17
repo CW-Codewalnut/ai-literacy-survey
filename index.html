@@ -30,6 +30,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
   background-image:linear-gradient(var(--surface) 1px,transparent 1px),linear-gradient(90deg,var(--surface) 1px,transparent 1px);background-size:28px 28px;}
@@ -431,7 +432,7 @@ function show(view) {
 function route() {
   const h = location.hash.slice(1);
   if (h === "team") { show("report"); renderReport(false); }
-  else if (h === "report" && S.isAdmin) { show("report"); renderReport(true); }
+  else if (h === "report") { show("report"); if (S.isAdmin) renderReport(true); else $("rep-body").textContent = "The Organizer report is only for organizers. If you are one, refresh the page."; }
   else if (h === "card" && S.mine) { showResult(S.mine, null); }
   else if (!$("v-play").classList.contains("on")) show("start");
 }
@@ -672,6 +673,7 @@ async function renderReport(ownerMode) {
   finally { if (tok === renderTok) $("rep-body").replaceChildren(...body.childNodes); }
 }
 async function renderReportInto(body, ownerMode) {
+  if (S.identity) await S.identity;
   $("rep-title").textContent = ownerMode ? "Organizer report" : "Team AI literacy";
   if (ownerMode) $("rep-title").append(el("span", {class:"owner-badge"}, "ONLY YOU SEE THIS"));
   if (!S.sb || !S.allowed) { body.append(el("div", {class:"empty"}, "Sign in with an invited GitHub account on the Home page to see team results.")); $("rep-sub").textContent = ""; return; }
@@ -763,7 +765,7 @@ async function renderReportInto(body, ownerMode) {
   // --- owner: individuals
   const people = (S.all || []).filter(d => d.data && d.data.ratings);
   const ids = people.map(d => d.id);
-  const nameOf = id => { const d = (people.find(p => p.id === id) || {}).data || {}; return d.name ? `${d.name} (@${d.gh})` : "@" + (d.gh || "unknown"); };
+  const nameOf = id => { const d = (people.find(p => p.id === id) || {}).data || {}; const em = (people.find(p => p.id === id) || {}).row?.email; return (d.name ? `${d.name} (@${d.gh})` : "@" + (d.gh || "unknown")) + (em ? " · " + em : ""); };
   const rows = people.map(d => ({id:d.id, r:d.data, p:profileOf(d.data)})).sort((a, b) => b.p.index - a.p.index);
 
   const iSec = el("div", {class:"section"}, el("h2", {}, "Individuals"), el("p", {class:"desc"}, "Each person's score per area. Click a row for their topic-by-topic answers and learning wishes."));
@@ -838,29 +840,63 @@ function renderStartStatus() {
 
 /* ---------------- invite list (organizer) ---------------- */
 async function renderInvites(body) {
-  const sec = el("div", {class:"section no-print"}, el("h2", {}, "Invite list"), el("p", {class:"desc"}, "Only these GitHub accounts can play and see team results. Add usernames separated by commas or spaces."));
-  const {data, error} = await S.sb.from("allowed_users").select("*").order("added_at");
+  const sec = el("div", {class:"section no-print"}, el("h2", {}, "Invite list"), el("p", {class:"desc"}, "Only these people can play and see team results. Add Maersk emails or GitHub usernames, separated by commas or spaces. People who sign in without an invite appear under Waiting for approval."));
+  const [{data, error}, {data: reqs}] = await Promise.all([
+    S.sb.from("allowed_users").select("*").order("added_at"),
+    S.sb.from("access_requests").select("*").order("requested_at", {ascending:false})]);
   if (error) { sec.append(el("div", {class:"empty"}, "Couldn't load the invite list: " + error.message)); body.append(sec); return; }
-  const played = new Set((S.all || []).map(d => (d.data.gh || "").toLowerCase()));
-  const input = el("input", {type:"text", id:"invite-input", placeholder:"github-user-1, github-user-2"});
+  const invited = data || [];
+  const inv = new Set(invited.map(u => u.github_username));
+  const played = new Set();
+  (S.all || []).forEach(d => { if (d.row.github_username) played.add(d.row.github_username.toLowerCase()); if (d.row.email) played.add(d.row.email.toLowerCase()); });
+  const addNames = async names => {
+    const {error} = await S.sb.from("allowed_users").upsert(names.map(n => ({github_username:n})), {onConflict:"github_username", ignoreDuplicates:true});
+    return error;
+  };
+  const input = el("input", {type:"text", id:"invite-input", placeholder:"name@maersk.com, github-user"});
   const msg = el("span", {class:"muted", style:"font-size:13px"});
   const add = el("button", {class:"btn small", type:"button"}, "Add");
   add.onclick = async () => {
-    const names = input.value.split(/[\s,;]+/).map(x => x.trim().replace(/^@/, "").toLowerCase()).filter(Boolean);
+    const names = [...new Set(input.value.split(/[\s,;]+/).map(x => x.trim().replace(/^@/, "").replace(/[<>()"']/g, "").toLowerCase()).filter(Boolean))];
     if (!names.length) return;
-    const {error} = await S.sb.from("allowed_users").upsert(names.map(n => ({github_username:n})), {onConflict:"github_username", ignoreDuplicates:true});
-    msg.textContent = error ? "Couldn't add: " + error.message : `Added ${names.length}.`;
-    if (!error) renderReport(true);
+    add.disabled = true; const err = await addNames(names); add.disabled = false;
+    msg.textContent = err ? "Couldn't add: " + err.message : `Added ${names.length}.`;
+    if (!err) renderReport(true);
   };
+  input.addEventListener("keydown", e => { if (e.key === "Enter") add.click(); });
   sec.append(el("div", {style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"}, input, add, msg));
-  const done = (data || []).filter(u => played.has(u.github_username)).length;
-  const players = (data || []).filter(u => !u.is_admin || played.has(u.github_username));
+
+  // waiting for approval
+  const waiting = (reqs || []).filter(r => !inv.has((r.github_username || "").toLowerCase()) && !(r.email && inv.has(r.email.toLowerCase())));
+  if (waiting.length) {
+    sec.append(el("div", {class:"stat-l", style:"margin:4px 0 6px;color:#ffd27a"}, `Waiting for approval (${waiting.length})`));
+    const wl = el("div", {style:"display:grid;gap:6px;margin-bottom:14px"});
+    waiting.forEach(r => {
+      const ok = el("button", {class:"btn small", type:"button", style:"border-color:var(--good)"}, "Approve");
+      const no = el("button", {class:"btn small", type:"button"}, "Dismiss");
+      ok.onclick = async () => { ok.disabled = true; const err = await addNames([r.github_username.toLowerCase()]); if (!err) await S.sb.from("access_requests").delete().eq("user_id", r.user_id); renderReport(true); };
+      no.onclick = async () => { await S.sb.from("access_requests").delete().eq("user_id", r.user_id); renderReport(true); };
+      wl.append(el("div", {style:"display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--surface-2);border-radius:6px;padding:8px 10px;font-size:14px"},
+        el("b", {}, r.display_name || "@" + r.github_username), el("span", {class:"muted"}, "@" + r.github_username + (r.email ? " · " + r.email : "")),
+        el("span", {style:"margin-left:auto;display:flex;gap:6px"}, ok, no)));
+    });
+    if (waiting.length > 1) {
+      const all = el("button", {class:"btn small", type:"button"}, `Approve all ${waiting.length}`);
+      all.onclick = async () => { all.disabled = true; const err = await addNames(waiting.map(r => r.github_username.toLowerCase())); if (!err) await S.sb.from("access_requests").delete().in("user_id", waiting.map(r => r.user_id)); renderReport(true); };
+      wl.append(el("div", {}, all));
+    }
+    sec.append(wl);
+  }
+
+  const players = invited.filter(u => !u.is_admin || played.has(u.github_username));
+  const done = players.filter(u => played.has(u.github_username)).length;
   sec.append(el("div", {class:"stat-l", style:"margin-bottom:6px"}, `${done} of ${players.length} invited people have played`));
   const chips = el("div", {class:"chips"});
-  (data || []).forEach(u => {
+  invited.forEach(u => {
     const has = played.has(u.github_username);
-    const c = el("span", {class:"chip " + (has ? "good" : "warn")}, (has ? "✓ " : "… ") + "@" + u.github_username + (u.is_admin ? " (organizer)" : ""));
-    if (!u.is_admin) { const x = el("button", {type:"button", title:"Remove", style:"background:none;border:0;color:var(--ink-3);padding:0 0 0 6px"}, "×");
+    const label = (u.github_username.includes("@") ? "" : "@") + u.github_username;
+    const c = el("span", {class:"chip " + (has ? "good" : "warn")}, (has ? "✓ " : "… ") + label + (u.is_admin ? " (organizer)" : ""));
+    if (!u.is_admin) { const x = el("button", {type:"button", title:"Remove", "aria-label":"Remove " + label, style:"background:none;border:0;color:var(--ink-3);padding:0 0 0 6px"}, "×");
       x.onclick = async () => { await S.sb.from("allowed_users").delete().eq("github_username", u.github_username); renderReport(true); }; c.append(x); }
     chips.append(c);
   });
@@ -881,28 +917,36 @@ function renderAuth() {
   const out = el("button", {class:"btn small", type:"button"}, "Sign out");
   out.onclick = async () => { await S.sb.auth.signOut(); location.reload(); };
   if (S.avatar) box.append(el("img", {src:S.avatar, alt:""}));
+  if (!S.allowed && S.err) {
+    box.append(el("span", {style:"color:var(--crit)"}, "Couldn't check the invite list (" + S.err + "). Refresh the page to try again."), out);
+    return;
+  }
   if (!S.allowed) {
-    box.append(el("span", {}, "Signed in as ", el("b", {}, "@" + S.gh), ", but this account isn't on the invite list. Ask the organizer to add it."), out);
+    box.append(el("span", {}, "Signed in as ", el("b", {}, "@" + S.gh), ". You're on the waiting list: the organizer just needs to approve you. Refresh this page after they do."), out);
     return;
   }
   box.append(el("span", {}, "Signed in as ", el("b", {}, "@" + S.gh)), out);
   $("start-btn").hidden = false;
 }
 async function loadIdentity(session) {
-  S.uid = session ? session.user.id : null;
   const md = session ? session.user.user_metadata || {} : {};
-  S.gh = (md.user_name || md.preferred_username || "").toLowerCase();
-  S.fullName = md.full_name || md.name || "";
-  S.avatar = md.avatar_url || "";
-  S.allowed = false; S.isAdmin = false; S.mine = null;
-  if (S.uid) {
-    const {data} = await S.sb.from("allowed_users").select("github_username,is_admin").eq("github_username", S.gh).maybeSingle();
-    S.allowed = !!data; S.isAdmin = !!(data && data.is_admin);
-    if (S.allowed) {
-      const {data: mine} = await S.sb.from("responses").select("*").eq("user_id", S.uid).maybeSingle();
-      if (mine) S.mine = {...mine.answers, submittedAt:mine.submitted_at};
+  const id = {uid: session ? session.user.id : null, gh:(md.user_name || md.preferred_username || "").toLowerCase(),
+    fullName: md.full_name || md.name || "", avatar: md.avatar_url || "", allowed:false, isAdmin:false, mine:null, err:""};
+  if (id.uid) {
+    id.email = (session.user.email || md.email || "").toLowerCase();
+    const {data, error} = await S.sb.rpc("my_access");
+    if (error) id.err = error.message;
+    id.allowed = !!(data && data.allowed); id.isAdmin = !!(data && data.admin);
+    if (!error && !id.allowed) {
+      await S.sb.from("access_requests").upsert({user_id:id.uid, github_username:id.gh, email:id.email || null, display_name:id.fullName || null, requested_at:new Date().toISOString()}, {onConflict:"user_id"});
+    }
+    if (id.allowed) {
+      const {data: mine} = await S.sb.from("responses").select("*").eq("user_id", id.uid).maybeSingle();
+      if (mine) id.mine = {...mine.answers, submittedAt:mine.submitted_at};
     }
   }
+  // apply everything at once, only after all checks have finished
+  Object.assign(S, id);
   $("nav-report").hidden = !S.isAdmin;
   $("nav-team").hidden = !S.allowed;
   $("view-card-btn").hidden = !S.mine;
@@ -916,8 +960,11 @@ $("print-btn").onclick = () => window.print();
   if (!ok) { renderAuth(); route(); return; }
   S.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
   const {data:{session}} = await S.sb.auth.getSession();
-  await loadIdentity(session);
-  S.sb.auth.onAuthStateChange((ev, sess) => { if (ev === "SIGNED_IN" && sess && sess.user.id !== S.uid) loadIdentity(sess).then(route); if (ev === "SIGNED_OUT") loadIdentity(null); });
+  S.identity = loadIdentity(session); await S.identity;
+  S.sb.auth.onAuthStateChange((ev, sess) => setTimeout(() => {
+    const uid = sess ? sess.user.id : null;
+    if (uid !== S.uid) S.identity = loadIdentity(sess).then(route);
+  }, 0));
   if (/access_token|error_description/.test(location.hash)) history.replaceState(null, "", location.pathname);
   route();
 })();
