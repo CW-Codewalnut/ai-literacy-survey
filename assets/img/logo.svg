@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="168" height="32" viewBox="0 0 168 32" role="img" aria-label="CodeWalnut">
+  <!-- Placeholder wordmark. Replace this file with the official CodeWalnut logo (keep the file name). -->
+  <rect x="0" y="2" width="28" height="28" rx="7" fill="#151829"/>
+  <text x="14" y="21.5" text-anchor="middle" font-family="DM Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#ffffff">CW</text>
+  <text x="36" y="22" font-family="DM Sans, Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#151829">CodeWalnut</text>
+</svg>

@@ -1,0 +1,20 @@
+Copyright (c) 2026 CodeWalnut. All rights reserved.
+
+This software and its source code, documentation, question banks and associated files
+(the "Software") are the proprietary property of CodeWalnut.
+
+The source code is published for transparency and review only. No licence is granted to
+use, copy, modify, merge, publish, distribute, sublicense, host, or sell copies of the
+Software, in whole or in part, without the prior written permission of CodeWalnut.
+
+Viewing the source code in this repository does not grant any right to use it.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL CODEWALNUT BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+Third-party components loaded at runtime (supabase-js, Google Fonts) remain under their
+own licences.
+
+For permissions, contact CodeWalnut.
