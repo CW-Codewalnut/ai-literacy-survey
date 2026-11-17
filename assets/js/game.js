@@ -12,7 +12,7 @@ App.renderSurveyIntro = (inv, bank, existing) => {
     el("div", {},
       el("div", {class:"faint", style:"font-weight:600;margin-bottom:6px"}, `${inv.teams.name} · ${bank.cat.name}`),
       el("h1", {}, "How deep is your AI stack?"),
-      el("p", {class:"muted"}, `A ${Math.max(4, Math.round(bank.items.length / 5))}-minute self-check. ${bank.items.length} topic blocks fall one at a time. Drop each one into the lane that matches what you honestly know today. There are no right answers and nothing is timed.`),
+      el("p", {class:"muted"}, `A ${App.minutesFor(bank.items.length)}-minute self-check. ${bank.items.length} topic blocks fall one at a time. Drop each one into the lane that matches what you honestly know today. There are no right answers and nothing is timed.`),
       el("ul", {class:"how"},
         el("li", {}, el("span", {}, "01"), el("span", {}, "Read the topic and its one-line description.")),
         el("li", {}, el("span", {}, "02"), el("span", {}, "Press ", el("span", {class:"kbd"}, "1"), "–", el("span", {class:"kbd"}, "4"), " or tap a lane to drop it. ", el("span", {class:"kbd"}, "←"), el("span", {class:"kbd"}, "→"), " and ", el("span", {class:"kbd"}, "Space"), " work too.")),

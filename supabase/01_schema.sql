@@ -162,7 +162,7 @@ create policy settings_all on public.app_settings for all to authenticated using
 
 -- Question banks: everyone signed in can read (needed to take a survey); admins edit
 create policy categories_read  on public.categories for select to authenticated using (true);
-create policy categories_write on public.categories for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy categories_write on public.categories for all    to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy sections_read    on public.sections   for select to authenticated using (true);
 create policy sections_write   on public.sections   for all    to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy questions_read   on public.questions  for select to authenticated using (true);

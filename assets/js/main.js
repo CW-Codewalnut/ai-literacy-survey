@@ -31,7 +31,7 @@ function renderSignIn() {
       el("ul", {class:"how"},
         el("li", {}, el("span", {}, "01"), el("span", {}, "Sign in with GitHub.")),
         el("li", {}, el("span", {}, "02"), el("span", {}, "Your team's survey opens automatically.")),
-        el("li", {}, el("span", {}, "03"), el("span", {}, "About 7 minutes later, you get your AI literacy card."))),
+        el("li", {}, el("span", {}, "03"), el("span", {}, "A few minutes later, you get your AI literacy card."))),
       btn,
       el("p", {class:"faint", style:"font-size:13px;margin-top:14px"}, "Your individual answers are seen only by the survey administrators.")),
     el("div", {},

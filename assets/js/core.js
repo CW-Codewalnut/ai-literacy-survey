@@ -51,7 +51,7 @@ App.lanesFor = (sec, cat) => {
   if (sec.kind === "frequency") return App.FREQ_LANES;
   if (sec.kind === "tools") return App.TOOL_LANES;
   const labels = (cat && cat.skill_lanes) || ["Never heard of it", "Know a little", "Can implement it", "Confident / Expert"];
-  const subs = cat && cat.id === "leadership" ? ["Haven't come across it", "Could explain it", "Use it in decisions", "Drive it across teams"] : App.SKILL_SUBS;
+  const subs = labels[0] === "New to me" ? ["Haven't come across it", "Could explain it", "Use it in decisions", "Drive it across teams"] : App.SKILL_SUBS;
   const SHORT = {"Never heard of it":"Never heard", "Know a little":"Know a little", "Can implement it":"Can implement", "Confident / Expert":"Expert",
     "New to me":"New to me", "Understand it":"Understand it", "Apply it in decisions":"Apply it", "Lead & champion it":"Lead it"};
   return labels.map((l, i) => ({short:SHORT[l] || l, long:l, sub:subs[i]}));
@@ -92,6 +92,7 @@ App.stage = (index) => {
   if (index >= 15) return ["AI Explorer", "Knows the landscape and is ready to start building."];
   return ["AI Curious", "Early in the journey: focused learning will move this up quickly."];
 };
+App.minutesFor = n => Math.max(3, Math.round(n * 11 / 60));   // ~11 seconds per block
 App.avgOf = c => { const t = c[0] + c[1] + c[2] + c[3]; return t ? (c[1] + 2 * c[2] + 3 * c[3]) / t : 0; };
 
 /* ---------- identity ---------- */
