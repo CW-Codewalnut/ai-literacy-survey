@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skill Stack AI Survey</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: an arcade cabinet. Four landing lanes = the four self-rating levels; topics fall as blocks and stack into your personal skill profile. Single dark theme by choice. */
+:root{
+  --bg:#0d0f1f;
+  --surface:#14162b;
+  --surface-2:#1c1f3a;
+  --line:#2b2f55;
+  --ink:#eef0ff;
+  --ink-2:#a9aed6;
+  --ink-3:#6f74a3;
+  --accent:#6fd0f5;
+  --good:#5fbf74; --warn:#e0a03a; --crit:#ee6555;
+  /* level ramp: sequential, one hue dim -> bright */
+  --l0:#2e3354; --l1:#2f5f80; --l2:#3592c0; --l3:#6fd0f5;
+  /* categories (validated, dark surface) */
+  --c-fund:#1c9bc4; --c-prompt:#c98316; --c-rag:#d4559a; --c-de:#3f9f57; --c-agents:#8a6ff0; --c-ops:#e25a4a; --c-warm:#5a5f8c;
+  --display:"Silkscreen", ui-monospace, "Courier New", monospace;
+  --body:"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  background-image:linear-gradient(var(--surface) 1px,transparent 1px),linear-gradient(90deg,var(--surface) 1px,transparent 1px);background-size:28px 28px;}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.02em;text-wrap:balance;margin:0;line-height:1.15}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 48px}
+.btn{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:10px 16px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{border-color:var(--ink-3)}
+.btn.primary{background:var(--accent);color:#08202c;border-color:var(--accent);font-family:var(--display);font-size:14px;box-shadow:0 4px 0 #2f7fa6}
+.btn.primary:active{transform:translateY(2px);box-shadow:0 2px 0 #2f7fa6}
+.btn.small{padding:6px 10px;font-size:13px}
+.muted{color:var(--ink-2)} .faint{color:var(--ink-3)}
+.kbd{font-family:var(--display);font-size:11px;background:var(--surface-2);border:1px solid var(--line);border-bottom-width:3px;border-radius:4px;padding:1px 6px;color:var(--ink)}
+.view{display:none} .view.on{display:block}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--display);font-size:18px}
+.logo i{display:grid;grid-template-columns:repeat(2,9px);gap:2px}
+.logo i b{width:9px;height:9px;display:block;border-radius:2px}
+.nav{display:flex;gap:8px;flex-wrap:wrap}
+.notice{border:1px solid var(--line);border-left:4px solid var(--warn);background:var(--surface);padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:14px}
+.notice:empty{display:none}
+
+/* ---------- start ---------- */
+.hero{display:grid;grid-template-columns:1.2fr 1fr;gap:28px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:28px}
+.hero h1{font-size:34px;margin-bottom:12px}
+.hero p{max-width:60ch;margin:0 0 12px}
+.how{display:grid;gap:10px;margin:18px 0 20px;padding:0;list-style:none}
+.how li{display:flex;gap:10px;align-items:flex-start}
+.how li span:first-child{font-family:var(--display);color:var(--accent);min-width:22px}
+.levels-legend{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.lv{border-radius:8px;padding:12px 10px;min-height:96px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid var(--line)}
+.lv b{font-family:var(--display);font-size:20px}
+.lv span{font-size:13px;line-height:1.3}
+.lv.l0{background:var(--l0)} .lv.l1{background:var(--l1)} .lv.l2{background:var(--l2)} .lv.l3{background:var(--l3);color:#08202c}
+.status-card{margin-top:16px;padding:12px 14px;border:1px dashed var(--line);border-radius:8px;font-size:14px}
+.status-card:empty{display:none}
+.privacy{font-size:13px;color:var(--ink-2);margin-top:14px}
+.auth{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;font-size:14px}
+.auth img{width:28px;height:28px;border-radius:50%}
+.btn.gh{background:#f0f2ff;color:#111;border-color:#f0f2ff;font-weight:700}
+input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:260px}
+input[type=text]:focus{outline:2px solid var(--accent);outline-offset:1px}
+@media print{
+  body{background:#fff;color:#111;background-image:none}
+  .topbar,.no-print{display:none!important}
+  .section,.tile{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
+/* ---------- play ---------- */
+.game{display:grid;grid-template-columns:240px 1fr;gap:16px}
+.hud{display:flex;flex-direction:column;gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stat-l{font-size:12px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em}
+.stat-v{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums}
+.levelname{font-family:var(--display);font-size:14px;margin-top:2px}
+.segs{display:flex;gap:3px;margin-top:10px}
+.segs i{flex:1;height:8px;border-radius:2px;background:var(--surface-2)}
+.now h3{font-size:15px;margin:4px 0 6px}
+.now p{margin:0;font-size:14px;color:var(--ink-2)}
+.star-btn{width:100%;justify-content:center;margin-top:12px}
+.star-btn[aria-pressed="true"]{background:#3a2f12;border-color:var(--warn);color:#ffd27a}
+.keys{font-size:13px;color:var(--ink-2);display:grid;gap:6px}
+.board{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;height:min(620px,calc(100vh - 140px));min-height:460px;overflow:hidden;--bh:14px}
+.lanes{position:absolute;inset:0;display:grid;grid-template-columns:repeat(4,1fr)}
+.lane{position:relative;border-right:1px dashed var(--line);display:flex;flex-direction:column;justify-content:flex-end;cursor:pointer;transition:background .15s}
+.lane:last-child{border-right:0}
+.lane:hover,.lane.hot{background:rgba(111,208,245,.06)}
+.stack{display:flex;flex-direction:column-reverse;gap:2px;padding:0 10px 6px}
+.brick{height:var(--bh);border-radius:3px;position:relative;box-shadow:inset 0 -2px 0 rgba(0,0,0,.25),inset 0 2px 0 rgba(255,255,255,.15);animation:land .25s ease-out}
+.brick.star::after{content:"★";position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:min(11px,var(--bh));line-height:1;color:#ffd27a}
+@keyframes land{from{transform:scaleY(1.6);opacity:.4}to{transform:none;opacity:1}}
+.lane-label{border-top:3px solid var(--line);padding:10px 8px 12px;text-align:center;background:var(--surface-2)}
+.lane-label b{display:block;font-family:var(--display);font-size:13px}
+.lane-label small{display:block;font-size:12px;color:var(--ink-2);line-height:1.25;margin-top:2px}
+.lane-label .k{margin-top:6px;display:inline-block}
+.lane[data-l="0"] .lane-label{border-top-color:var(--l0)} .lane[data-l="1"] .lane-label{border-top-color:var(--l1)}
+.lane[data-l="2"] .lane-label{border-top-color:var(--l2)} .lane[data-l="3"] .lane-label{border-top-color:var(--l3)}
+.lane .count{position:absolute;top:8px;left:0;right:0;text-align:center;font-family:var(--display);font-size:12px;color:var(--ink-3)}
+.piece{position:absolute;top:0;left:0;width:25%;padding:0 8px;pointer-events:none;z-index:3;transition:left .12s ease-out}
+.piece .blk{border-radius:6px;padding:10px 10px 12px;min-height:58px;color:#fff;font-weight:700;font-size:14px;line-height:1.25;box-shadow:inset 0 -4px 0 rgba(0,0,0,.28),inset 0 3px 0 rgba(255,255,255,.18),0 8px 20px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;text-align:center;word-break:break-word}
+.piece.unset{left:25%;width:50%}
+.piece.dropping{transition:top .28s cubic-bezier(.5,0,1,1),left .12s}
+.piece .tag{position:absolute;top:-8px;right:14px;font-size:11px;background:#ffd27a;color:#3a2f12;border-radius:10px;padding:0 6px;font-weight:700}
+.guide{position:absolute;left:0;right:0;border-top:1px dashed rgba(111,208,245,.25);pointer-events:none}
+.banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:rgba(13,15,31,.82);z-index:5;text-align:center;padding:20px}
+.banner.on{display:flex}
+.banner .lvl{font-family:var(--display);font-size:13px;color:var(--ink-2)}
+.banner h2{font-size:28px}
+.banner p{color:var(--ink-2);margin:0;max-width:44ch}
+.toast{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-family:var(--display);font-size:14px;color:var(--accent);z-index:4;pointer-events:none;opacity:0;transition:opacity .2s}
+.toast.on{opacity:1}
+
+/* ---------- result card ---------- */
+.result{display:grid;grid-template-columns:320px 1fr;gap:18px}
+.card-id{background:linear-gradient(160deg,#1d2350,#14162b 60%);border:1px solid var(--line);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:12px}
+.big{font-family:var(--display);font-size:64px;line-height:1;font-variant-numeric:tabular-nums}
+.big small{font-size:18px;color:var(--ink-2)}
+.arche{font-family:var(--display);font-size:20px;color:var(--accent)}
+.bars{display:grid;gap:10px}
+.bar-row{display:grid;grid-template-columns:190px 1fr 48px;gap:10px;align-items:center;font-size:14px}
+.bar-track{height:14px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:0 4px 4px 0}
+.num{font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:3px 8px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
+.chip.warn{border-color:var(--warn);color:#ffd27a}
+.chip.crit{border-color:var(--crit);color:#ffb2a8}
+.chip.good{border-color:var(--good);color:#a6e6b4}
+.save-state{font-size:13px}
+
+/* ---------- report ---------- */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.tile .stat-v{font-size:28px}
+.tile .sub{font-size:13px;color:var(--ink-2)}
+.section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}
+.section h2{font-size:16px;margin-bottom:4px}
+.section .desc{color:var(--ink-2);font-size:14px;margin:0 0 14px;max-width:70ch}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);margin-bottom:12px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+.cat-h{font-family:var(--display);font-size:12px;margin:14px 0 6px;display:flex;align-items:center;gap:8px}
+.cat-h i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.dist{display:grid;grid-template-columns:minmax(150px,230px) 1fr 140px;gap:10px;align-items:center;font-size:14px;padding:3px 0;border-radius:4px}
+.dist:hover{background:var(--surface-2)}
+.seg-bar{display:flex;height:16px;gap:2px}
+.seg-bar span{display:block;height:100%}
+.seg-bar span:first-child{border-radius:3px 0 0 3px} .seg-bar span:last-child{border-radius:0 3px 3px 0}
+.flags{display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap}
+.prio{display:grid;gap:8px;counter-reset:p;margin:0;padding:0;list-style:none}
+.prio li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;background:var(--surface-2);border-radius:6px;padding:8px 10px;font-size:14px}
+.prio li::before{counter-increment:p;content:counter(p);font-family:var(--display);color:var(--accent)}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+td.cell{text-align:center;font-variant-numeric:tabular-nums;font-weight:600;border-radius:4px}
+tr.person{cursor:pointer} tr.person:hover td{background:rgba(255,255,255,.03)}
+tr.detail td{white-space:normal;background:var(--bg)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 16px;padding:6px 0}
+.pgrid div{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.lvl-pill{font-size:11px;border-radius:10px;padding:0 7px;font-weight:700}
+.empty{color:var(--ink-2);font-size:14px;padding:12px;border:1px dashed var(--line);border-radius:8px}
+.owner-badge{font-family:var(--display);font-size:11px;background:#3a2f12;color:#ffd27a;border-radius:4px;padding:2px 6px;margin-left:8px;vertical-align:2px}
+.tip{position:fixed;pointer-events:none;background:#000;border:1px solid var(--line);color:var(--ink);font-size:12px;padding:6px 8px;border-radius:6px;z-index:20;display:none;max-width:260px}
+
+@media (max-width:820px){
+  .hero,.game,.result,.two{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  .hud{order:2}
+  .dist{grid-template-columns:1fr;gap:4px}
+  .flags{justify-content:flex-start}
+  .bar-row{grid-template-columns:120px 1fr 44px}
+}
+@media (max-width:480px){
+  .levels-legend{grid-template-columns:repeat(2,1fr)}
+  .lane-label small{display:none}
+  .piece .blk{font-size:12px}
+  .hero h1{font-size:26px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo"><i><b style="background:var(--c-fund)"></b><b style="background:var(--c-prompt)"></b><b style="background:var(--c-rag)"></b><b style="background:var(--c-de)"></b></i>Skill Stack</div>
+    <div class="nav">
+      <button class="btn small" id="nav-home" type="button">Home</button>
+      <button class="btn small" id="nav-team" type="button">Team results</button>
+      <button class="btn small" id="nav-report" type="button" hidden>Organizer report</button>
+    </div>
+  </div>
+  <div class="notice" id="notice"></div>
+
+  <!-- START -->
+  <section class="view on" id="v-start">
+    <div class="hero">
+      <div>
+        <h1>How deep is your AI stack?</h1>
+        <p class="muted">A 6-minute self-check for data engineers. 34 topic blocks fall, one at a time. Drop each one into the lane that matches what you honestly know today. There are no right answers and nothing is timed.</p>
+        <ul class="how">
+          <li><span>01</span><span>Read the topic and its one-line description on the left.</span></li>
+          <li><span>02</span><span>Press <span class="kbd">1</span>–<span class="kbd">4</span>, or tap a lane, to drop it. <span class="kbd">←</span><span class="kbd">→</span> and <span class="kbd">Space</span> work too.</span></li>
+          <li><span>03</span><span>Press <span class="kbd">L</span> or the star to flag a topic you'd like to learn. <span class="kbd">⌫</span> undoes the last block.</span></li>
+          <li><span>04</span><span>Clear all 7 levels to get your AI Literacy card.</span></li>
+        </ul>
+        <div class="auth" id="auth-box">Connecting…</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn primary" id="start-btn" type="button" hidden>Press start</button>
+          <button class="btn" id="view-card-btn" type="button" hidden>View my card</button>
+        </div>
+        <div class="status-card" id="start-status"></div>
+        <p class="privacy">Your individual answers are visible only to the survey organizer. Everyone else sees team totals, and only once at least 3 people have played.</p>
+      </div>
+      <div>
+        <div class="stat-l" style="margin-bottom:8px">The four lanes</div>
+        <div class="levels-legend">
+          <div class="lv l0"><b>1</b><span>Never heard of it</span></div>
+          <div class="lv l1"><b>2</b><span>Know a little, could explain it</span></div>
+          <div class="lv l2"><b>3</b><span>Can implement it</span></div>
+          <div class="lv l3"><b>4</b><span>Confident / Expert, could teach it</span></div>
+        </div>
+        <div class="stat-l" style="margin:18px 0 8px">The levels</div>
+        <div class="chips" id="level-chips"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAY -->
+  <section class="view" id="v-play">
+    <div class="game">
+      <div class="hud">
+        <div class="panel">
+          <div class="stat-l">Level <span id="lvl-num">0</span> / 6</div>
+          <div class="levelname" id="lvl-name">Warm-up</div>
+          <div class="segs" id="segs"></div>
+          <div style="display:flex;justify-content:space-between;margin-top:12px">
+            <div><div class="stat-l">Blocks</div><div class="stat-v" id="blocks">0/34</div></div>
+            <div style="text-align:right"><div class="stat-l">Score</div><div class="stat-v" id="score">0</div></div>
+          </div>
+        </div>
+        <div class="panel now">
+          <div class="stat-l">Now falling</div>
+          <h3 id="now-name">…</h3>
+          <p id="now-desc"></p>
+          <button class="btn star-btn" id="star-btn" type="button" aria-pressed="false">☆ I want to learn this <span class="kbd">L</span></button>
+        </div>
+        <div class="panel keys">
+          <div><span class="kbd">1</span>–<span class="kbd">4</span> drop into lane</div>
+          <div><span class="kbd">←</span> <span class="kbd">→</span> move · <span class="kbd">Space</span> drop</div>
+          <div><span class="kbd">⌫</span> undo last block</div>
+          <button class="btn small" id="undo-btn" type="button">Undo last block</button>
+        </div>
+      </div>
+      <div class="board" id="board">
+        <div class="lanes" id="lanes"></div>
+        <div class="guide" id="guide"></div>
+        <div class="piece unset" id="piece"><div class="blk" id="piece-blk"></div></div>
+        <div class="toast" id="toast"></div>
+        <div class="banner" id="banner"><div class="lvl" id="ban-lvl"></div><h2 id="ban-title"></h2><p id="ban-sub"></p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section class="view" id="v-result">
+    <div class="result">
+      <div class="card-id">
+        <div class="stat-l">AI Literacy Index</div>
+        <div class="big" id="r-index">0<small>/100</small></div>
+        <div class="arche" id="r-arche"></div>
+        <div class="muted" id="r-arche-desc" style="font-size:14px"></div>
+        <div class="save-state" id="r-save"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:auto">
+          <button class="btn small" id="r-team" type="button">See team results</button>
+          <button class="btn small" id="r-again" type="button">Restack my answers</button>
+        </div>
+      </div>
+      <div class="panel" style="padding:18px">
+        <h2 style="font-size:16px;margin-bottom:12px">Your profile by area</h2>
+        <div class="bars" id="r-bars"></div>
+        <div class="two" style="margin-top:18px">
+          <div><div class="stat-l" style="margin-bottom:6px">Your strongest topics</div><div class="chips" id="r-strong"></div></div>
+          <div><div class="stat-l" style="margin-bottom:6px">You flagged to learn</div><div class="chips" id="r-learn"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REPORT -->
+  <section class="view" id="v-report">
+    <h1 id="rep-title" style="font-size:24px;margin-bottom:6px">Team AI literacy</h1>
+    <p class="muted" id="rep-sub" style="margin:0 0 16px"></p>
+    <div class="no-print" style="margin-bottom:14px"><button class="btn small" id="print-btn" type="button">Print / save as PDF</button></div>
+    <div id="rep-body"></div>
+  </section>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+"use strict";
+const TEAM_SIZE = (window.SKILLSTACK_CONFIG || {}).teamSize || 16;
+const MIN_N = 3;
+const CFG = window.SKILLSTACK_CONFIG || {};
+const LEVELS = [
+  {short:"Never heard", long:"Never heard of it"},
+  {short:"Know a little", long:"Know a little"},
+  {short:"Can implement", long:"Can implement it"},
+  {short:"Expert", long:"Confident / Expert"}
+];
+const USAGE_LANES = [
+  {short:"Never", long:"Never"},
+  {short:"Rarely", long:"A few times a month"},
+  {short:"Weekly", long:"Every week"},
+  {short:"Daily", long:"Every day"}
+];
+const CATS = [
+  {id:"warm", name:"Warm-up: how you use AI", color:"var(--c-warm)", hex:"#5a5f8c", usage:true, items:[
+    ["u_chat","Chat assistants at work","ChatGPT, Claude or Gemini for writing, research, debugging or design questions."],
+    ["u_code","AI coding tools","Copilot, Cursor, Claude Code or similar inside your IDE or terminal."]]},
+  {id:"fund", name:"LLM Fundamentals", color:"var(--c-fund)", hex:"#1c9bc4", items:[
+    ["tokens","Tokens & context windows","How text becomes tokens, and why context length limits what a model can see at once."],
+    ["sampling","Temperature & sampling","How settings like temperature and top-p trade predictable output for variety."],
+    ["halluc","Hallucinations","Why models produce confident but wrong answers, and practical ways to reduce them."],
+    ["modelsel","Choosing a model","Weighing quality, latency and cost across model families and sizes."],
+    ["reasoning","Reasoning models","Models that think step by step before answering, and when the extra cost is worth it."],
+    ["finetune","Fine-tuning vs prompting vs RAG","Knowing which approach fits a given problem, and why."]]},
+  {id:"prompt", name:"Prompting & Context", color:"var(--c-prompt)", hex:"#c98316", items:[
+    ["promptdesign","Prompt design","System prompts, few-shot examples, clear instructions and constraints."],
+    ["structured","Structured outputs","Getting reliable JSON that matches a schema out of a model."],
+    ["ctxeng","Context engineering","Deciding what goes into the context window: documents, history, tool results."],
+    ["caching","Prompt caching & token costs","Reusing prompt prefixes and estimating spend per call and per pipeline run."]]},
+  {id:"rag", name:"RAG & Vector Search", color:"var(--c-rag)", hex:"#d4559a", items:[
+    ["embeddings","Embeddings","Turning text into vectors that capture meaning, and comparing them."],
+    ["chunking","Chunking strategies","Splitting documents so retrieval finds the right passage."],
+    ["vectordb","Vector databases","pgvector, Pinecone, Databricks Vector Search, OpenSearch k-NN and similar."],
+    ["hybrid","Hybrid search & reranking","Combining keyword and vector search, then reranking the results."],
+    ["rageval","Evaluating RAG","Measuring retrieval recall and whether answers stay faithful to sources."]]},
+  {id:"de", name:"AI in Data Engineering", color:"var(--c-de)", hex:"#3f9f57", items:[
+    ["text2sql","Text-to-SQL","Letting people ask plain-English questions against your warehouse."],
+    ["semantic","Semantic layers for AI","Metric definitions and metadata that keep AI answers consistent (dbt Semantic Layer, Cube)."],
+    ["codegen","AI-written pipeline code","Generating and reviewing SQL, PySpark, Airflow DAGs and dbt models with AI."],
+    ["unstructured","Unstructured data extraction","Pulling tables and fields out of PDFs, emails and documents with LLMs."],
+    ["batchllm","LLMs inside pipelines","Calling models at scale in batch jobs: Snowflake Cortex, Databricks AI Functions, batch APIs."],
+    ["dq","AI for data quality","Using models to classify, dedupe, profile records or flag anomalies."],
+    ["synthetic","Synthetic data generation","Creating realistic test or training data with models."]]},
+  {id:"agents", name:"Agents & Tooling", color:"var(--c-agents)", hex:"#8a6ff0", items:[
+    ["toolcall","Tool / function calling","Letting a model call your functions and APIs with typed arguments."],
+    ["mcp","Model Context Protocol (MCP)","The open standard for connecting AI apps to data sources and tools."],
+    ["agentfw","Agent frameworks","LangGraph, CrewAI, Claude Agent SDK, OpenAI Agents SDK and similar."],
+    ["multiagent","Multi-agent workflows","Orchestrating several agents with planning, hand-offs and checks."],
+    ["llmapi","Working with LLM APIs","SDKs, rate limits, retries, streaming and batch endpoints."]]},
+  {id:"ops", name:"Production & Governance", color:"var(--c-ops)", hex:"#e25a4a", items:[
+    ["evals","LLM evaluation","Golden datasets, LLM-as-judge and regression tests for prompts."],
+    ["observability","LLM observability","Tracing prompts, latency and cost (Langfuse, LangSmith, MLflow)."],
+    ["injection","Prompt injection & AI security","How untrusted text can hijack a model, and how to defend against it."],
+    ["pii","PII & data leakage","Keeping sensitive data out of prompts, logs and third-party models."],
+    ["aigov","AI policy & regulation","Company AI usage policy, the EU AI Act and licensing of model outputs."]]}
+];
+const SKILL_CATS = CATS.filter(c => !c.usage);
+const ITEMS = [];
+CATS.forEach((c, ci) => c.items.forEach(([id, name, desc]) => ITEMS.push({id, name, desc, cat:c, ci})));
+const SKILL_ITEMS = ITEMS.filter(i => !i.cat.usage);
+const ITEM = Object.fromEntries(ITEMS.map(i => [i.id, i]));
+const LV_HEX = ["#2e3354", "#2f5f80", "#3592c0", "#6fd0f5"];
+
+const $ = id => document.getElementById(id);
+const el = (tag, attrs, ...kids) => {
+  const n = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k === "style") n.style.cssText = v;
+    else if (k === "text") n.textContent = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v);
+  }
+  kids.flat().forEach(k => k != null && n.append(k.nodeType ? k : document.createTextNode(String(k))));
+  return n;
+};
+
+/* ---------------- scoring ---------------- */
+function profileOf(resp) {
+  const r = resp.ratings || {};
+  const cats = SKILL_CATS.map(c => {
+    const vals = c.items.map(([id]) => r[id]).filter(v => typeof v === "number");
+    return {cat:c, pct: vals.length ? Math.round(vals.reduce((a,b)=>a+b,0) / vals.length / 3 * 100) : 0};
+  });
+  const all = SKILL_ITEMS.map(i => r[i.id]).filter(v => typeof v === "number");
+  const index = all.length ? Math.round(all.reduce((a,b)=>a+b,0) / all.length / 3 * 100) : 0;
+  return {index, cats};
+}
+function archetype(index) {
+  if (index >= 75) return ["AI Architect", "You design and run AI systems and could lead the team's adoption."];
+  if (index >= 55) return ["AI Builder", "You ship AI features and know most of the moving parts."];
+  if (index >= 35) return ["AI Practitioner", "You use AI tools well and have built with a few of the core pieces."];
+  if (index >= 15) return ["AI Explorer", "You know the landscape and are ready to start building."];
+  return ["AI Curious", "A clean slate: a few focused sessions will move you up fast."];
+}
+
+/* ---------------- state ---------------- */
+const S = {
+  db:null, user:null, myId:null, isOwner:false,
+  mine:null,            // my saved response
+  summary:null,         // summary/team doc
+  all:null,             // owner: all responses [{id,data}]
+  answers:[],           // in-progress [{id, v, star}]
+  idx:0, lane:null, star:false, busy:false, score:0, startedAt:0,
+  lastLevelShown:-1, savingSummary:false
+};
+
+/* ---------------- views ---------------- */
+function show(view) {
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + view));
+  window.scrollTo(0, 0);
+}
+function route() {
+  const h = location.hash.slice(1);
+  if (h === "team") { show("report"); renderReport(false); }
+  else if (h === "report" && S.isAdmin) { show("report"); renderReport(true); }
+  else if (h === "card" && S.mine) { showResult(S.mine, null); }
+  else if (!$("v-play").classList.contains("on")) show("start");
+}
+window.addEventListener("hashchange", route);
+$("nav-home").onclick = () => { if (location.hash) history.replaceState(null, "", location.pathname + location.search); show("start"); };
+$("nav-team").onclick = () => { location.hash = "team"; };
+$("nav-report").onclick = () => { location.hash = "report"; };
+$("r-team").onclick = () => { location.hash = "team"; };
+$("r-again").onclick = () => startGame();
+$("start-btn").onclick = () => startGame();
+$("view-card-btn").onclick = () => { location.hash = "card"; route(); };
+
+CATS.forEach((c, i) => $("level-chips").append(el("span", {class:"chip", style:`border-color:${c.hex}`}, `${i}. ${c.name.replace("Warm-up: how you use AI","Warm-up")}`)));
+
+/* ---------------- game ---------------- */
+function buildLanes(isUsage) {
+  const lanes = $("lanes"); lanes.textContent = "";
+  const labels = isUsage ? USAGE_LANES : LEVELS;
+  labels.forEach((l, i) => {
+    const lane = el("div", {class:"lane", "data-l":String(i), role:"button", tabindex:"-1", "aria-label":`Drop into: ${l.long}`},
+      el("div", {class:"count", id:"cnt"+i}, "0"),
+      el("div", {class:"stack", id:"stack"+i}),
+      el("div", {class:"lane-label"}, el("b", {}, isUsage ? l.short : l.short), el("small", {}, isUsage ? l.long : ["Never heard of it","Could explain it","Have built with it","Could teach it"][i]), el("span", {class:"kbd k"}, String(i+1))));
+    lane.addEventListener("mouseenter", () => { if (!S.busy) setLane(i); });
+    lane.addEventListener("click", () => drop(i));
+    lanes.append(lane);
+  });
+  lanes.dataset.usage = isUsage ? "1" : "0";
+  renderStacks();
+}
+function renderStacks() {
+  const isUsage = $("lanes").dataset.usage === "1";
+  const counts = [0,0,0,0];
+  for (let i = 0; i < 4; i++) { const s = $("stack"+i); if (s) s.textContent = ""; }
+  S.answers.forEach(a => {
+    const it = ITEM[a.id];
+    if (!!it.cat.usage !== isUsage) return;
+    counts[a.v]++;
+    const b = el("div", {class:"brick" + (a.star ? " star" : ""), style:`background:${it.cat.hex}`, title:it.name});
+    $("stack"+a.v).append(b);
+  });
+  counts.forEach((c, i) => { const n = $("cnt"+i); if (n) n.textContent = c; });
+  const board = $("board");
+  const avail = board.clientHeight - 90 - 60;  // minus label + top room for piece
+  const mx = Math.max(1, ...counts);
+  board.style.setProperty("--bh", Math.max(4, Math.min(16, Math.floor(avail / mx) - 2)) + "px");
+}
+function startGame() {
+  S.answers = []; S.idx = 0; S.score = 0; S.startedAt = Date.now(); S.lastLevelShown = -1;
+  location.hash === "" || history.replaceState(null, "", location.pathname + location.search);
+  show("play");
+  const segs = $("segs"); segs.textContent = "";
+  CATS.forEach(c => segs.append(el("i", {"data-c":c.id})));
+  nextPiece();
+}
+function setLane(i) {
+  S.lane = i;
+  const p = $("piece"); p.classList.remove("unset");
+  p.style.left = (i * 25) + "%";
+  document.querySelectorAll(".lane").forEach((l, j) => l.classList.toggle("hot", j === i));
+}
+function nextPiece() {
+  if (S.idx >= ITEMS.length) return finish();
+  const it = ITEMS[S.idx];
+  const usageNow = !!it.cat.usage;
+  if (($("lanes").dataset.usage === "1") !== usageNow || !$("lanes").children.length) buildLanes(usageNow);
+  S.star = !!S.restoreStar; S.restoreStar = false;
+  S.lane = null;
+  updateHud(it);
+  const p = $("piece"), blk = $("piece-blk");
+  p.className = "piece unset"; p.style.left = ""; p.style.top = "-80px";
+  blk.textContent = it.name; blk.style.background = it.cat.hex;
+  document.querySelectorAll(".lane").forEach(l => l.classList.remove("hot"));
+  const tag = p.querySelector(".tag"); if (tag) tag.remove();
+  if (S.star) p.append(el("span", {class:"tag"}, "★ learn"));
+  void p.offsetHeight;
+  const go = () => {
+    S.busy = false;
+    requestAnimationFrame(() => {
+      p.style.transition = "top 1.6s cubic-bezier(.2,.7,.3,1), left .12s ease-out";
+      p.style.top = "56px";
+      $("guide").style.top = "56px";
+    });
+  };
+  if (it.ci !== S.lastLevelShown) {
+    S.lastLevelShown = it.ci; S.busy = true;
+    const ban = $("banner");
+    $("ban-lvl").textContent = it.ci === 0 ? "LEVEL 0" : `LEVEL ${it.ci} OF 6`;
+    $("ban-title").textContent = it.cat.name;
+    $("ban-sub").textContent = it.cat.usage ? "Two quick ones first. These lanes are about how often, not how well." : `${it.cat.items.length} blocks. Lanes now mean how well you know each topic.`;
+    ban.classList.add("on");
+    setTimeout(() => { ban.classList.remove("on"); go(); }, 1500);
+  } else go();
+}
+function updateHud(it) {
+  $("lvl-num").textContent = it.ci;
+  $("lvl-name").textContent = it.cat.name;
+  $("now-name").textContent = it.name;
+  $("now-desc").textContent = it.desc;
+  $("blocks").textContent = `${S.idx}/${ITEMS.length}`;
+  $("score").textContent = S.score.toLocaleString();
+  const sb = $("star-btn"); sb.setAttribute("aria-pressed", String(S.star)); sb.firstChild.textContent = (S.star ? "★" : "☆") + " I want to learn this ";
+  sb.hidden = !!it.cat.usage;
+  document.querySelectorAll("#segs i").forEach((s, i) => {
+    const c = CATS[i]; const done = c.items.every(([id]) => S.answers.some(a => a.id === id));
+    s.style.background = done ? c.hex : (i === it.ci ? `linear-gradient(90deg, ${c.hex} ${Math.round(100 * c.items.filter(([id]) => S.answers.some(a=>a.id===id)).length / c.items.length)}%, var(--surface-2) 0)` : "");
+  });
+}
+function toggleStar() {
+  const it = ITEMS[S.idx]; if (!it || it.cat.usage || S.busy) return;
+  S.star = !S.star;
+  const p = $("piece"); const tag = p.querySelector(".tag"); if (tag) tag.remove();
+  if (S.star) p.append(el("span", {class:"tag"}, "★ learn"));
+  updateHud(it);
+}
+function toast(t) { const n = $("toast"); n.textContent = t; n.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => n.classList.remove("on"), 900); }
+function drop(lane) {
+  if (S.busy || S.idx >= ITEMS.length) return;
+  if (lane == null) lane = S.lane;
+  if (lane == null) { toast("Pick a lane: 1–4"); return; }
+  S.busy = true; setLane(lane);
+  const it = ITEMS[S.idx];
+  const p = $("piece");
+  p.classList.add("dropping"); p.style.transition = "";
+  const board = $("board");
+  const stack = $("stack"+lane);
+  const target = board.clientHeight - 90 - stack.offsetHeight - 50;
+  p.style.top = Math.max(60, target) + "px";
+  setTimeout(() => {
+    S.answers = S.answers.filter(a => a.id !== it.id);
+    S.answers.push({id:it.id, v:lane, star: it.cat.usage ? false : S.star});
+    S.score += 100 + (S.star ? 25 : 0);
+    S.idx++;
+    const next = ITEMS[S.idx];
+    if (!next || next.ci !== it.ci) { S.score += 500; toast(`LEVEL CLEAR +500`); }
+    renderStacks();
+    nextPiece();
+  }, 300);
+}
+function undo() {
+  if (S.busy || !S.answers.length) return;
+  const last = S.answers.pop();
+  S.idx = ITEMS.findIndex(i => i.id === last.id);
+  S.score = Math.max(0, S.score - 100 - (last.star ? 25 : 0));
+  S.lastLevelShown = ITEMS[S.idx].ci;
+  if (($("lanes").dataset.usage === "1") !== !!ITEMS[S.idx].cat.usage) buildLanes(!!ITEMS[S.idx].cat.usage);
+  renderStacks();
+  S.restoreStar = last.star;
+  nextPiece();
+}
+$("star-btn").onclick = toggleStar;
+$("undo-btn").onclick = undo;
+document.addEventListener("keydown", e => {
+  if (!$("v-play").classList.contains("on")) return;
+  if (e.key >= "1" && e.key <= "4") { e.preventDefault(); drop(+e.key - 1); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); if (!S.busy) setLane(S.lane == null ? 1 : Math.max(0, S.lane - 1)); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); if (!S.busy) setLane(S.lane == null ? 2 : Math.min(3, S.lane + 1)); }
+  else if (e.key === " " || e.key === "ArrowDown" || e.key === "Enter") { e.preventDefault(); drop(); }
+  else if (e.key === "l" || e.key === "L") { e.preventDefault(); toggleStar(); }
+  else if (e.key === "Backspace") { e.preventDefault(); undo(); }
+});
+window.addEventListener("resize", () => { if ($("v-play").classList.contains("on")) renderStacks(); });
+
+/* ---------------- finish & save ---------------- */
+function finish() {
+  const resp = {v:1, ratings:{}, usage:{}, learn:[], submittedAt:new Date().toISOString(), durationSec:Math.round((Date.now() - S.startedAt)/1000), score:S.score};
+  S.answers.forEach(a => {
+    if (ITEM[a.id].cat.usage) resp.usage[a.id] = a.v; else resp.ratings[a.id] = a.v;
+    if (a.star) resp.learn.push(a.id);
+  });
+  showResult(resp, "saving");
+  save(resp);
+}
+async function save(resp) {
+  const st = $("r-save");
+  if (!S.sb || !S.allowed) { st.textContent = ""; st.append(el("span", {style:"color:var(--crit)"}, "Not saved: sign in with an invited GitHub account, then press Restack.")); return; }
+  const answers = {ratings:resp.ratings, usage:resp.usage, learn:resp.learn, durationSec:resp.durationSec, score:resp.score};
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const {error} = await S.sb.from("responses").upsert({user_id:S.uid, github_username:S.gh, display_name:S.fullName || null, answers}, {onConflict:"user_id"});
+    if (!error) {
+      S.mine = resp; $("view-card-btn").hidden = false; renderStartStatus();
+      st.textContent = ""; st.append(el("span", {style:"color:var(--good)"}, "✓ Saved. Thanks for playing!"));
+      return;
+    }
+    if (attempt === 0) { await new Promise(r => setTimeout(r, 800)); continue; }
+    st.textContent = ""; st.append(el("span", {style:"color:var(--crit)"}, "Not saved (" + (error.message || "connection problem") + "). Press Restack to try again."));
+  }
+}
+function showResult(resp, saving) {
+  show("result");
+  const pr = profileOf(resp); const [a, d] = archetype(pr.index);
+  $("r-index").firstChild.textContent = pr.index;
+  $("r-arche").textContent = a; $("r-arche-desc").textContent = d;
+  if (saving === "saving") $("r-save").textContent = "Saving…";
+  else if (resp.submittedAt) $("r-save").textContent = "Saved " + new Date(resp.submittedAt).toLocaleDateString(undefined, {day:"numeric", month:"short"});
+  const bars = $("r-bars"); bars.textContent = "";
+  pr.cats.forEach(({cat, pct}) => bars.append(el("div", {class:"bar-row"},
+    el("span", {}, cat.name), el("div", {class:"bar-track"}, el("div", {class:"bar-fill", style:`width:${pct}%;background:${cat.hex}`})), el("span", {class:"num"}, pct + "%"))));
+  const strong = SKILL_ITEMS.filter(i => (resp.ratings||{})[i.id] >= 2).sort((x, y) => resp.ratings[y.id] - resp.ratings[x.id]).slice(0, 8);
+  const sEl = $("r-strong"); sEl.textContent = "";
+  if (!strong.length) sEl.append(el("span", {class:"faint", style:"font-size:14px"}, "None rated 'can implement' yet. Plenty of room to grow."));
+  strong.forEach(i => sEl.append(el("span", {class:"chip", style:`border-color:${i.cat.hex}`}, i.name)));
+  const lEl = $("r-learn"); lEl.textContent = "";
+  if (!(resp.learn||[]).length) lEl.append(el("span", {class:"faint", style:"font-size:14px"}, "No topics flagged."));
+  (resp.learn||[]).forEach(id => ITEM[id] && lEl.append(el("span", {class:"chip warn"}, "★ " + ITEM[id].name)));
+}
+
+/* ---------------- aggregation ---------------- */
+function computeSummary(responses) {
+  const perTopic = {}, usage = {}, learn = {};
+  SKILL_ITEMS.forEach(i => { perTopic[i.id] = [0,0,0,0]; learn[i.id] = 0; });
+  CATS[0].items.forEach(([id]) => usage[id] = [0,0,0,0]);
+  let n = 0;
+  responses.forEach(r => {
+    if (!r || !r.ratings) return; n++;
+    for (const [k, v] of Object.entries(r.ratings)) if (perTopic[k] && v >= 0 && v <= 3) perTopic[k][v]++;
+    for (const [k, v] of Object.entries(r.usage || {})) if (usage[k] && v >= 0 && v <= 3) usage[k][v]++;
+    (r.learn || []).forEach(k => { if (k in learn) learn[k]++; });
+  });
+  return {n, perTopic, usage, learn};
+}
+const avgOf = c => { const t = c[0]+c[1]+c[2]+c[3]; return t ? (c[1] + 2*c[2] + 3*c[3]) / t : 0; };
+/* ---------------- report ---------------- */
+let tipEl = $("tip");
+function tipOn(e, text) { tipEl.textContent = text; tipEl.style.display = "block"; tipEl.style.left = Math.min(innerWidth - 270, e.clientX + 12) + "px"; tipEl.style.top = (e.clientY + 12) + "px"; }
+function tipOff() { tipEl.style.display = "none"; }
+function heat(pct) { // sequential: dim -> accent
+  const t = Math.max(0, Math.min(1, pct / 100));
+  const a = [46,51,84], b = [111,208,245];
+  const c = a.map((x, i) => Math.round(x + (b[i] - x) * t));
+  return {bg:`rgb(${c.join(",")})`, fg: t > .62 ? "#08202c" : "var(--ink)"};
+}
+
+let renderTok = 0;
+async function renderReport(ownerMode) {
+  const tok = ++renderTok; const body = el("div");
+  try { await renderReportInto(body, ownerMode); }
+  finally { if (tok === renderTok) $("rep-body").replaceChildren(...body.childNodes); }
+}
+async function renderReportInto(body, ownerMode) {
+  $("rep-title").textContent = ownerMode ? "Organizer report" : "Team AI literacy";
+  if (ownerMode) $("rep-title").append(el("span", {class:"owner-badge"}, "ONLY YOU SEE THIS"));
+  if (!S.sb || !S.allowed) { body.append(el("div", {class:"empty"}, "Sign in with an invited GitHub account on the Home page to see team results.")); $("rep-sub").textContent = ""; return; }
+  let sum = null;
+  if (ownerMode) {
+    const {data, error} = await S.sb.from("responses").select("*").order("submitted_at", {ascending:false});
+    if (error) { body.append(el("div", {class:"empty"}, "Couldn't load responses: " + error.message)); return; }
+    S.all = (data || []).map(r => ({id:r.user_id, row:r, data:{...r.answers, name:r.display_name, gh:r.github_username, submittedAt:r.submitted_at, attempts:r.attempts}}));
+    sum = S.all.length ? computeSummary(S.all.map(d => d.data)) : null;
+  } else {
+    const {data, error} = await S.sb.rpc("team_summary");
+    if (error) { body.append(el("div", {class:"empty"}, "Couldn't load team results: " + error.message)); return; }
+    if (data && data.n) {
+      sum = {n:data.n, updatedAt:data.updatedAt, perTopic:{}, usage:{}, learn:{}};
+      SKILL_ITEMS.forEach(i => { sum.perTopic[i.id] = (data.ratings || {})[i.id] || [0,0,0,0]; sum.learn[i.id] = (data.learn || {})[i.id] || 0; });
+      CATS[0].items.forEach(([id]) => sum.usage[id] = (data.usage || {})[id] || [0,0,0,0]);
+    }
+  }
+  if (ownerMode) await renderInvites(body);
+  if (!sum) { body.append(el("div", {class:"empty"}, ownerMode ? "No one has played yet. Results appear here as people finish." : "No team results yet. They appear here once the first players have finished.")); $("rep-sub").textContent = ""; return; }
+  $("rep-sub").textContent = `${sum.n} of ${TEAM_SIZE} engineers have played` + (sum.updatedAt && !ownerMode ? ` · updated ${new Date(sum.updatedAt).toLocaleString(undefined, {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"})}` : "") + ".";
+  if (!ownerMode && sum.n < MIN_N) { body.append(el("div", {class:"empty"}, `Team results unlock once ${MIN_N} people have played, so no one's answers can be singled out. ${sum.n} so far.`)); return; }
+
+  // --- tiles
+  const allCounts = SKILL_ITEMS.map(i => sum.perTopic[i.id] || [0,0,0,0]);
+  const teamIdx = Math.round(allCounts.reduce((a, c) => a + avgOf(c), 0) / allCounts.length / 3 * 100);
+  const totalCells = allCounts.reduce((a, c) => a + c[0]+c[1]+c[2]+c[3], 0) || 1;
+  const implPct = Math.round(allCounts.reduce((a, c) => a + c[2] + c[3], 0) / totalCells * 100);
+  const neverPct = Math.round(allCounts.reduce((a, c) => a + c[0], 0) / totalCells * 100);
+  const daily = sum.usage && sum.usage.u_code ? sum.usage.u_code[3] : 0;
+  const tiles = el("div", {class:"tiles"});
+  [[`${sum.n}/${TEAM_SIZE}`, "Responses", sum.n >= TEAM_SIZE ? "Everyone's in" : `${TEAM_SIZE - sum.n} still to play`],
+   [teamIdx, "Team AI Literacy Index", archetype(teamIdx)[0] + " on average"],
+   [implPct + "%", "Ratings at 'can implement' or above", `${neverPct}% of ratings were 'never heard'`],
+   [`${daily}/${sum.n}`, "Use AI coding tools daily", sum.usage && sum.usage.u_code ? `${sum.usage.u_code[0]} never use them` : ""]
+  ].forEach(([v, l, s]) => tiles.append(el("div", {class:"tile"}, el("div", {class:"stat-l"}, l), el("div", {class:"stat-v"}, String(v)), el("div", {class:"sub"}, s))));
+  body.append(tiles);
+
+  // --- category bars + priorities
+  const two = el("div", {class:"two"});
+  const catSec = el("div", {class:"section"}, el("h2", {}, "Strength by area"), el("p", {class:"desc"}, "Average self-rating per area, as a share of the maximum (everyone 'Expert' = 100%)."));
+  const cb = el("div", {class:"bars"});
+  SKILL_CATS.map(c => ({c, pct: Math.round(c.items.reduce((a, [id]) => a + avgOf(sum.perTopic[id]), 0) / c.items.length / 3 * 100)}))
+    .sort((a, b) => b.pct - a.pct)
+    .forEach(({c, pct}) => cb.append(el("div", {class:"bar-row"}, el("span", {}, c.name), el("div", {class:"bar-track"}, el("div", {class:"bar-fill", style:`width:${pct}%;background:${c.hex}`})), el("span", {class:"num"}, pct + "%"))));
+  catSec.append(cb);
+  const prSec = el("div", {class:"section"}, el("h2", {}, "Training priorities"), el("p", {class:"desc"}, "Ranked by low team skill plus how many people flagged the topic to learn."));
+  const pr = el("ol", {class:"prio"});
+  SKILL_ITEMS.map(i => { const c = sum.perTopic[i.id]; const t = c[0]+c[1]+c[2]+c[3] || 1; const gap = 1 - avgOf(c)/3; const want = (sum.learn[i.id]||0) / t; return {i, c, want: sum.learn[i.id]||0, p: gap*0.6 + want*0.4}; })
+    .sort((a, b) => b.p - a.p).slice(0, 7)
+    .forEach(({i, c, want}) => pr.append(el("li", {}, el("span", {}, el("b", {}, i.name), el("span", {class:"faint"}, " · " + i.cat.name)),
+      el("span", {class:"chips"}, el("span", {class:"chip"}, `${c[2]+c[3]} can build`), want ? el("span", {class:"chip warn"}, `★ ${want} want it`) : null))));
+  prSec.append(pr);
+  two.append(catSec, prSec); body.append(two);
+
+  // --- topic distribution
+  const dSec = el("div", {class:"section"}, el("h2", {}, "Every topic, every level"), el("p", {class:"desc"}, "How many people chose each lane. 'No expert' marks topics nobody can teach yet; ★ counts learning requests. Hover a bar for numbers."));
+  const lg = el("div", {class:"legend"});
+  LEVELS.forEach((l, i) => lg.append(el("span", {}, el("i", {style:`background:${LV_HEX[i]}`}), l.long)));
+  dSec.append(lg);
+  SKILL_CATS.forEach(c => {
+    dSec.append(el("div", {class:"cat-h"}, el("i", {style:`background:${c.hex}`}), c.name));
+    c.items.forEach(([id, name]) => {
+      const cnt = sum.perTopic[id]; const t = cnt[0]+cnt[1]+cnt[2]+cnt[3] || 1;
+      const bar = el("div", {class:"seg-bar"});
+      cnt.forEach((v, li) => { if (!v) return; const s = el("span", {style:`width:${v/t*100}%;background:${LV_HEX[li]}`});
+        s.addEventListener("mousemove", e => tipOn(e, `${name} · ${LEVELS[li].long}: ${v} of ${t}`)); s.addEventListener("mouseleave", tipOff); bar.append(s); });
+      const flags = el("div", {class:"flags"});
+      if (cnt[3] === 0) flags.append(el("span", {class:"chip crit"}, "No expert"));
+      if (cnt[0] / t >= 0.5) flags.append(el("span", {class:"chip"}, `${cnt[0]} never heard`));
+      if (sum.learn[id]) flags.append(el("span", {class:"chip warn"}, "★ " + sum.learn[id]));
+      dSec.append(el("div", {class:"dist"}, el("span", {}, name), bar, flags));
+    });
+  });
+  body.append(dSec);
+
+  // --- usage
+  if (sum.usage) {
+    const uSec = el("div", {class:"section"}, el("h2", {}, "How often the team uses AI today"));
+    const lg2 = el("div", {class:"legend"}); USAGE_LANES.forEach((l, i) => lg2.append(el("span", {}, el("i", {style:`background:${LV_HEX[i]}`}), l.long))); uSec.append(lg2);
+    CATS[0].items.forEach(([id, name]) => { const cnt = sum.usage[id] || [0,0,0,0]; const t = cnt.reduce((a,b)=>a+b,0) || 1;
+      const bar = el("div", {class:"seg-bar"}); cnt.forEach((v, li) => { if (!v) return; const s = el("span", {style:`width:${v/t*100}%;background:${LV_HEX[li]}`}); s.addEventListener("mousemove", e => tipOn(e, `${name} · ${USAGE_LANES[li].long}: ${v}`)); s.addEventListener("mouseleave", tipOff); bar.append(s); });
+      uSec.append(el("div", {class:"dist"}, el("span", {}, name), bar, el("div", {class:"flags"}, el("span", {class:"chip"}, `${cnt[3]} daily`)))); });
+    body.append(uSec);
+  }
+
+  if (!ownerMode) return;
+
+  // --- owner: individuals
+  const people = (S.all || []).filter(d => d.data && d.data.ratings);
+  const ids = people.map(d => d.id);
+  const nameOf = id => { const d = (people.find(p => p.id === id) || {}).data || {}; return d.name ? `${d.name} (@${d.gh})` : "@" + (d.gh || "unknown"); };
+  const rows = people.map(d => ({id:d.id, r:d.data, p:profileOf(d.data)})).sort((a, b) => b.p.index - a.p.index);
+
+  const iSec = el("div", {class:"section"}, el("h2", {}, "Individuals"), el("p", {class:"desc"}, "Each person's score per area. Click a row for their topic-by-topic answers and learning wishes."));
+  const copyBtn = el("button", {class:"btn small", type:"button"}, "Copy as CSV");
+  copyBtn.onclick = async () => {
+    const head = ["Name","Index","Archetype",...SKILL_CATS.map(c => c.name+" %"),...CATS[0].items.map(([,n]) => n+" (0=never..3=daily)"),...SKILL_ITEMS.map(i => i.name),"Wants to learn","Submitted"];
+    const lines = [head, ...rows.map(x => [nameOf(x.id), x.p.index, archetype(x.p.index)[0], ...x.p.cats.map(c => c.pct), ...CATS[0].items.map(([id]) => (x.r.usage||{})[id] ?? ""), ...SKILL_ITEMS.map(i => x.r.ratings[i.id] ?? ""), (x.r.learn||[]).map(k => ITEM[k] ? ITEM[k].name : k).join("; "), x.r.submittedAt || ""])];
+    const csv = lines.map(l => l.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g,'""')}"` : v).join(",")).join("\n");
+    try { await navigator.clipboard.writeText(csv); copyBtn.textContent = "Copied ✓"; } catch { copyBtn.textContent = "Copy blocked by browser"; }
+    setTimeout(() => copyBtn.textContent = "Copy as CSV", 1800);
+  };
+  iSec.append(el("div", {style:"margin-bottom:10px"}, copyBtn));
+  if (!rows.length) iSec.append(el("div", {class:"empty"}, "No responses yet."));
+  else {
+    const tbl = el("table");
+    tbl.append(el("thead", {}, el("tr", {}, el("th", {}, "Engineer"), el("th", {}, "Index"), ...SKILL_CATS.map(c => el("th", {title:c.name}, c.name.split(" ")[0])), el("th", {}, "★"), el("th", {}, "AI coding"))));
+    const tb = el("tbody");
+    rows.forEach(x => {
+      const tr = el("tr", {class:"person", tabindex:"0"});
+      const h = heat(x.p.index);
+      tr.append(el("td", {}, el("b", {}, nameOf(x.id)), el("div", {class:"faint", style:"font-size:12px"}, archetype(x.p.index)[0])),
+        el("td", {class:"cell", style:`background:${h.bg};color:${h.fg}`}, x.p.index));
+      x.p.cats.forEach(({pct}) => { const hc = heat(pct); tr.append(el("td", {class:"cell", style:`background:${hc.bg};color:${hc.fg}`}, pct)); });
+      tr.append(el("td", {class:"num"}, (x.r.learn||[]).length), el("td", {}, USAGE_LANES[(x.r.usage||{}).u_code ?? 0].short));
+      const det = el("tr", {class:"detail", hidden:""});
+      const td = el("td", {colspan:String(4 + SKILL_CATS.length)});
+      SKILL_CATS.forEach(c => {
+        td.append(el("div", {class:"cat-h"}, el("i", {style:`background:${c.hex}`}), c.name));
+        const g = el("div", {class:"pgrid"});
+        c.items.forEach(([id, name]) => { const v = x.r.ratings[id]; const star = (x.r.learn||[]).includes(id);
+          g.append(el("div", {}, el("span", {}, (star ? "★ " : "") + name), v == null ? el("span", {class:"faint"}, "–") : el("span", {class:"lvl-pill", style:`background:${LV_HEX[v]};color:${v===3?"#08202c":"var(--ink)"}`}, LEVELS[v].short))); });
+        td.append(g);
+      });
+      td.append(el("div", {class:"faint", style:"font-size:12px;margin-top:8px"}, `Last submitted ${x.r.submittedAt ? new Date(x.r.submittedAt).toLocaleString() : "?"} · attempt ${x.r.attempts || 1} · took ${Math.round((x.r.durationSec||0)/60)} min`));
+      det.append(td);
+      const toggle = () => { det.hidden = !det.hidden; };
+      tr.addEventListener("click", toggle); tr.addEventListener("keydown", e => { if (e.key === "Enter") toggle(); });
+      tb.append(tr, det);
+    });
+    tbl.append(tb);
+    iSec.append(el("div", {class:"tbl-wrap"}, tbl));
+  }
+  body.append(iSec);
+
+  // --- owner: champions & gaps
+  if (rows.length) {
+    const cSec = el("div", {class:"section"}, el("h2", {}, "Who can mentor whom"), el("p", {class:"desc"}, "For each area, the people who rated themselves highest (only those at 'can implement' level or above), and how many teammates sit below 'know a little'."));
+    const g = el("div", {class:"pgrid", style:"grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"});
+    SKILL_CATS.forEach((c, ci) => {
+      const ranked = rows.map(x => ({x, pct:x.p.cats[ci].pct})).sort((a, b) => b.pct - a.pct);
+      const champs = ranked.filter(r => r.pct >= 67).slice(0, 3);
+      const low = ranked.filter(r => r.pct < 34).length;
+      const box = el("div", {style:"display:block;background:var(--surface-2);border-radius:8px;padding:10px 12px;border-left:4px solid " + c.hex});
+      box.append(el("b", {}, c.name));
+      box.append(el("div", {class:"chips", style:"margin-top:6px"}, champs.length ? champs.map(r => el("span", {class:"chip good"}, `${nameOf(r.x.id)} · ${r.pct}%`)) : el("span", {class:"chip crit"}, "No one at implement level")));
+      box.append(el("div", {class:"faint", style:"font-size:13px;margin-top:6px"}, `${low} of ${rows.length} are new to this area`));
+      g.append(box);
+    });
+    cSec.append(g); body.append(cSec);
+  }
+}
+
+/* ---------------- start status ---------------- */
+function renderStartStatus() {
+  const st = $("start-status"); st.textContent = "";
+  if (S.mine) {
+    const pr = profileOf(S.mine);
+    st.append(`You stacked on ${new Date(S.mine.submittedAt).toLocaleDateString(undefined, {day:"numeric", month:"short"})} and scored `, el("b", {}, `${pr.index}/100 (${archetype(pr.index)[0]})`), ". Press start to restack and replace your answers.");
+    $("view-card-btn").hidden = false;
+  }
+}
+
+/* ---------------- invite list (organizer) ---------------- */
+async function renderInvites(body) {
+  const sec = el("div", {class:"section no-print"}, el("h2", {}, "Invite list"), el("p", {class:"desc"}, "Only these GitHub accounts can play and see team results. Add usernames separated by commas or spaces."));
+  const {data, error} = await S.sb.from("allowed_users").select("*").order("added_at");
+  if (error) { sec.append(el("div", {class:"empty"}, "Couldn't load the invite list: " + error.message)); body.append(sec); return; }
+  const played = new Set((S.all || []).map(d => (d.data.gh || "").toLowerCase()));
+  const input = el("input", {type:"text", id:"invite-input", placeholder:"github-user-1, github-user-2"});
+  const msg = el("span", {class:"muted", style:"font-size:13px"});
+  const add = el("button", {class:"btn small", type:"button"}, "Add");
+  add.onclick = async () => {
+    const names = input.value.split(/[\s,;]+/).map(x => x.trim().replace(/^@/, "").toLowerCase()).filter(Boolean);
+    if (!names.length) return;
+    const {error} = await S.sb.from("allowed_users").upsert(names.map(n => ({github_username:n})), {onConflict:"github_username", ignoreDuplicates:true});
+    msg.textContent = error ? "Couldn't add: " + error.message : `Added ${names.length}.`;
+    if (!error) renderReport(true);
+  };
+  sec.append(el("div", {style:"display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"}, input, add, msg));
+  const done = (data || []).filter(u => played.has(u.github_username)).length;
+  const players = (data || []).filter(u => !u.is_admin || played.has(u.github_username));
+  sec.append(el("div", {class:"stat-l", style:"margin-bottom:6px"}, `${done} of ${players.length} invited people have played`));
+  const chips = el("div", {class:"chips"});
+  (data || []).forEach(u => {
+    const has = played.has(u.github_username);
+    const c = el("span", {class:"chip " + (has ? "good" : "warn")}, (has ? "✓ " : "… ") + "@" + u.github_username + (u.is_admin ? " (organizer)" : ""));
+    if (!u.is_admin) { const x = el("button", {type:"button", title:"Remove", style:"background:none;border:0;color:var(--ink-3);padding:0 0 0 6px"}, "×");
+      x.onclick = async () => { await S.sb.from("allowed_users").delete().eq("github_username", u.github_username); renderReport(true); }; c.append(x); }
+    chips.append(c);
+  });
+  sec.append(chips);
+  body.append(sec);
+}
+
+/* ---------------- auth & boot ---------------- */
+function renderAuth() {
+  const box = $("auth-box"); box.textContent = "";
+  $("start-btn").hidden = true;
+  if (!S.sb) { box.append(el("span", {style:"color:var(--crit)"}, "Survey isn't configured yet: the organizer needs to fill in config.js.")); return; }
+  if (!S.uid) {
+    const b = el("button", {class:"btn gh", type:"button"}, "Sign in with GitHub to play");
+    b.onclick = () => S.sb.auth.signInWithOAuth({provider:"github", options:{redirectTo: location.origin + location.pathname}});
+    box.append(b); return;
+  }
+  const out = el("button", {class:"btn small", type:"button"}, "Sign out");
+  out.onclick = async () => { await S.sb.auth.signOut(); location.reload(); };
+  if (S.avatar) box.append(el("img", {src:S.avatar, alt:""}));
+  if (!S.allowed) {
+    box.append(el("span", {}, "Signed in as ", el("b", {}, "@" + S.gh), ", but this account isn't on the invite list. Ask the organizer to add it."), out);
+    return;
+  }
+  box.append(el("span", {}, "Signed in as ", el("b", {}, "@" + S.gh)), out);
+  $("start-btn").hidden = false;
+}
+async function loadIdentity(session) {
+  S.uid = session ? session.user.id : null;
+  const md = session ? session.user.user_metadata || {} : {};
+  S.gh = (md.user_name || md.preferred_username || "").toLowerCase();
+  S.fullName = md.full_name || md.name || "";
+  S.avatar = md.avatar_url || "";
+  S.allowed = false; S.isAdmin = false; S.mine = null;
+  if (S.uid) {
+    const {data} = await S.sb.from("allowed_users").select("github_username,is_admin").eq("github_username", S.gh).maybeSingle();
+    S.allowed = !!data; S.isAdmin = !!(data && data.is_admin);
+    if (S.allowed) {
+      const {data: mine} = await S.sb.from("responses").select("*").eq("user_id", S.uid).maybeSingle();
+      if (mine) S.mine = {...mine.answers, submittedAt:mine.submitted_at};
+    }
+  }
+  $("nav-report").hidden = !S.isAdmin;
+  $("nav-team").hidden = !S.allowed;
+  $("view-card-btn").hidden = !S.mine;
+  $("start-status").textContent = ""; renderStartStatus();
+  renderAuth();
+}
+$("print-btn").onclick = () => window.print();
+(async function boot() {
+  $("nav-team").hidden = true;
+  const ok = window.supabase && CFG.supabaseUrl && CFG.supabaseAnonKey && !/YOUR-/.test(CFG.supabaseUrl + CFG.supabaseAnonKey);
+  if (!ok) { renderAuth(); route(); return; }
+  S.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
+  const {data:{session}} = await S.sb.auth.getSession();
+  await loadIdentity(session);
+  S.sb.auth.onAuthStateChange((ev, sess) => { if (ev === "SIGNED_IN" && sess && sess.user.id !== S.uid) loadIdentity(sess).then(route); if (ev === "SIGNED_OUT") loadIdentity(null); });
+  if (/access_token|error_description/.test(location.hash)) history.replaceState(null, "", location.pathname);
+  route();
+})();
+</script>
+</body>
+</html>
