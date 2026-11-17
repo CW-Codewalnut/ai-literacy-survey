@@ -199,3 +199,8 @@ revoke all on all tables in schema public from anon;
 insert into public.app_settings (key, value)
 values ('exclude_words', '["khaiserulla", "nattu", "rabbani", "codewalnut"]'::jsonb)
 on conflict (key) do nothing;
+
+-- Keep-alive endpoint for the Free plan (see supabase/04_keep_alive.sql)
+create or replace function public.keep_alive() returns text
+language sql stable as $$ select 'ok'::text $$;
+grant execute on function public.keep_alive() to anon, authenticated;

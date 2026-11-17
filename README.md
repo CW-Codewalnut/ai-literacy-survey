@@ -60,6 +60,12 @@ Copy the Client ID, generate a client secret, and paste both into Supabase (step
 ### 4. Use it
 Sign in on the live site → **Admin** → create a team → **Invitations** → add emails → **Copy invite message** and send it from Outlook or Teams.
 
+## Staying online on Supabase's Free plan
+Supabase pauses Free plan projects after 7 days without activity. The **Keep Supabase awake** workflow (`.github/workflows/keep-alive.yml`) pings the database every 3 days to prevent that. It needs `supabase/04_keep_alive.sql` to have been run once.
+- GitHub turns off scheduled workflows in public repos after 60 days without commits. If you get that email, open **Actions → Keep Supabase awake → Enable workflow**.
+- If the project does get paused, resume it from the Supabase dashboard; data is kept.
+- The Free plan has no backups. Use **Copy as CSV** in reports to keep your own copy, or move to Supabase Pro.
+
 ## Changing the logo
 Replace `assets/img/logo.svg` (and `assets/img/favicon.svg`) with the official CodeWalnut logo, keeping the file names.
 
