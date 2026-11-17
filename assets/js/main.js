@@ -93,7 +93,7 @@ function cartridge(inv, r) {
     el("div", {class:"cart-meta"},
       el("div", {}, "Blocks", el("b", {}, bank.items.length)),
       el("div", {}, "Levels", el("b", {}, bank.sections.length)),
-      el("div", {}, "Time", el("b", {}, "~" + App.minutesFor(bank.items.length) + "m"))),
+      el("div", {}, "Minutes", el("b", {}, String(App.minutesFor(bank.items.length))))),
     p ? el("div", {class:"cart-score"}, el("span", {class:"stage-badge"}, "🏆 " + st), el("span", {class:"meter"}, el("i", {style:`width:${p.index}%`})), el("b", {}, p.index))
       : el("div", {class:"cart-score faint", style:"font-size:13px"}, "Not played yet. Your score appears here."),
     el("div", {class:"cart-actions"},
