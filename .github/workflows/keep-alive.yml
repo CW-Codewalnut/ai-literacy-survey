@@ -1,0 +1,33 @@
+name: Keep Supabase awake
+
+# Supabase pauses Free plan projects after 7 days without activity.
+# This pings the database every 3 days so the survey stays online.
+on:
+  schedule:
+    - cron: "23 4 */3 * *"   # 04:23 UTC every 3rd day
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Repository secrets SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are missing."
+            exit 1
+          fi
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /tmp/body -w "%{http_code}" -X POST "$SUPABASE_URL/rest/v1/rpc/keep_alive" \
+              -H "apikey: $SUPABASE_PUBLISHABLE_KEY" -H "Content-Type: application/json" -d '{}')
+            if [ "$code" = "200" ]; then echo "Database answered: $(cat /tmp/body)"; exit 0; fi
+            echo "Attempt $attempt got HTTP $code: $(cat /tmp/body)"; sleep $((attempt * 20))
+          done
+          echo "::error::Supabase did not answer. If the project is paused, resume it in the Supabase dashboard. If the response says keep_alive was not found, run supabase/04_keep_alive.sql."
+          exit 1
