@@ -1,50 +1,70 @@
-# Skill Stack: AI literacy self-check
+# AI Literacy Survey · CodeWalnut
 
-A Tetris-style self-assessment for data engineers. Players sign in with GitHub, drop 34 topic blocks into four lanes (Never heard → Expert), and their answers save automatically. Playing again overwrites their previous answers (the attempt count is kept).
+A game-style AI literacy self-assessment that CodeWalnut runs for client teams. Topic blocks fall one at a time and each person drops them into one of four lanes (from *Never heard of it* to *Confident / Expert*). Admins get team-by-team reports they can download as PDF or present full screen to leadership.
 
-- **Players** see their own result card and the team totals (after 3+ people have played).
-- **The organizer** also sees every individual, a per-topic breakdown per person, an invite list with who hasn't played yet, and can print a PDF.
-- **Only GitHub usernames on the invite list** can play or see anything. The database enforces this, not just the page.
+**Live site:** `https://cw-codewalnut.github.io/ai-literacy-survey/` (after setup below)
 
-Files: `index.html` (the game and report), `config.js` (your two Supabase values), `setup.sql` (database tables and access rules).
+## How it works
 
----
+**Survey takers** open the link, sign in with GitHub, and their survey opens automatically. The app knows their team and category from their invitation. Afterwards they see only their own result. Retaking replaces their previous answers.
 
-## One-time setup (about 20 minutes)
+**Admins** (CodeWalnut staff) can:
 
-### 1. Create the database (Supabase, free)
-1. Sign up at https://supabase.com and click **New project** (any name, e.g. `skill-stack`; pick a region near India/Europe).
-2. When it's ready, open **SQL Editor → New query**, paste all of `setup.sql`.
-3. In the last section, replace `YOUR_GITHUB_USERNAME` with **your** GitHub username, then click **Run**. You should see "Success".
-4. Open **Project Settings → API** and copy the **Project URL** and the **anon public** key into `config.js`.
+| Area | What you can do |
+|---|---|
+| Teams | Create, rename, archive or delete teams (e.g. *APMT – Maersk – Data Engineering*) |
+| Invitations | Add people to a team + survey category by work email or GitHub username, copy a ready-made invite message, see who has completed it, exclude individuals from reports |
+| Waiting for approval | Anyone who signs in without a matching invitation appears here; pick their team and category and approve |
+| Reports | One report per team + category: summary, strength by area, every topic by level, AI usage, tool adoption, and individuals. **Download PDF** or **Present full screen** (slides never show individuals) |
+| Questions | Edit, reorder, hide or add topics and sections for each category. Changes apply to the next person who starts |
+| Settings | Add or remove admins; words that exclude internal or test responses from reports |
 
-### 2. Put the site on GitHub (CodeWalnut org)
-1. Create a repo in the CodeWalnut organization, e.g. `codewalnut/skill-stack`.
-2. Upload `index.html`, `config.js` and `README.md` (keep `setup.sql` too if you like; it contains no secrets).
-3. Repo **Settings → Pages → Source: Deploy from a branch → main / (root) → Save**.
-4. Note the site address, e.g. `https://codewalnut.github.io/skill-stack/`.
+**Survey categories:** Data Engineering, Software Engineering, Architecture, Leadership. Each has its own question bank (`supabase/question_banks.py` is the source of the defaults).
 
-> A private repo can publish Pages on GitHub's paid plans. Either way the site only shows a "Sign in with GitHub" screen to anyone not on your invite list: no answers or results are in the repo or the page.
+**Privacy:** individual answers are readable only by the person who gave them and by admins. This is enforced by Postgres row-level security in Supabase (`supabase/01_schema.sql`), not by the web page.
 
-### 3. Turn on "Sign in with GitHub"
-1. In GitHub: **CodeWalnut org → Settings → Developer settings → OAuth Apps → New OAuth App**.
-   - Application name: `Skill Stack`
-   - Homepage URL: your site address from step 2
-   - Authorization callback URL: `https://YOUR-PROJECT-ID.supabase.co/auth/v1/callback` (your Supabase Project URL + `/auth/v1/callback`)
-2. Click **Register**, then **Generate a new client secret**. Copy the Client ID and the secret.
-3. In Supabase: **Authentication → Sign In / Providers → GitHub** → enable, paste Client ID and secret → Save.
-4. In Supabase: **Authentication → URL Configuration** → set **Site URL** to your site address, and add the same address under **Redirect URLs**.
+## Tech
 
-### 4. Invite people
-Open the site, sign in with GitHub, click **Organizer report**, and add the 16 GitHub usernames in **Invite list** (comma separated). The list shows ✓ next to everyone who has played, so you can chase the rest.
+- Static HTML/CSS/JavaScript, no build step. Hosted on GitHub Pages.
+- [Supabase](https://supabase.com) for the database and GitHub sign-in.
+- Deployed by `.github/workflows/deploy.yml`, which writes `assets/js/config.js` from repository secrets at deploy time. No configuration is committed.
 
-Then send everyone the site link. That's all they need.
+> **About the keys:** the Supabase URL and *publishable* key are stored as repository secrets so they never appear in the code. A website must give its publishable key to every browser that opens it, so visitors can see it in the deployed site. That is by design and safe: the database rules decide what each signed-in person can read or write. **Never** use the `sb_secret_...` key here; the workflow refuses it.
 
----
+## Setup (one time, about 20 minutes)
 
-## Notes
-- **Retakes:** a player can press **Restack** any time; their row is replaced and `attempts` goes up by one.
-- **Privacy:** individual answers are readable only by the player and admins (`is_admin = true` in `allowed_users`). To add a co-organizer, run in SQL Editor: `update allowed_users set is_admin = true where github_username = 'their-username';`
-- **Raw data:** Supabase → Table Editor → `responses` (export to CSV), or **Copy as CSV** in the Organizer report.
-- **Corporate networks:** players' browsers must reach `github.io` and `supabase.co`. If either is blocked on the Maersk network, ask their IT to allow it or have them use another network.
-- **Free-tier note:** Supabase pauses free projects after a week with no activity; un-pause from the dashboard if that happens.
+### 1. Database (Supabase)
+1. In your Supabase project, open **SQL Editor** and run, in order:
+   1. `supabase/01_schema.sql`: tables and access rules
+   2. `supabase/02_seed_questions.sql`: the four default question banks
+   3. `supabase/03_first_admin.sql`: replace `your-github-username` with your GitHub username first
+2. **Authentication → Sign In / Providers**
+   - **GitHub:** enable it, paste the Client ID and Secret from step 2, and turn on **Allow users without an email**.
+   - **Email:** turn it off, so GitHub is the only way in.
+3. **Authentication → URL Configuration:** set **Site URL** to `https://cw-codewalnut.github.io/ai-literacy-survey/` and add the same address under **Redirect URLs**.
+
+### 2. GitHub sign-in (OAuth app)
+In GitHub: **CW-Codewalnut organisation → Settings → Developer settings → OAuth Apps → New OAuth App**
+- Homepage URL: `https://cw-codewalnut.github.io/ai-literacy-survey/`
+- Authorization callback URL: `https://<your-project-ref>.supabase.co/auth/v1/callback` (shown in Supabase on the GitHub provider screen)
+
+Copy the Client ID, generate a client secret, and paste both into Supabase (step 1.2).
+
+### 3. Deploy (GitHub Pages)
+1. Repo **Settings → Secrets and variables → Actions → New repository secret**:
+   - `SUPABASE_URL`: `https://<your-project-ref>.supabase.co`
+   - `SUPABASE_PUBLISHABLE_KEY`: the publishable key (`sb_publishable_...`) from Supabase → Project Settings → API Keys
+2. Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. Push to `main` (or run the workflow from the **Actions** tab). The site is live a minute later.
+
+### 4. Use it
+Sign in on the live site → **Admin** → create a team → **Invitations** → add emails → **Copy invite message** and send it from Outlook or Teams.
+
+## Changing the logo
+Replace `assets/img/logo.svg` (and `assets/img/favicon.svg`) with the official CodeWalnut logo, keeping the file names.
+
+## Local development
+Copy `assets/js/config.example.js` to `assets/js/config.js` (git-ignored), fill in your project values, and serve the folder with any static server, e.g. `python3 -m http.server`. Add `http://localhost:8000/` to Supabase's Redirect URLs to sign in locally.
+
+## License
+Proprietary. © CodeWalnut. All rights reserved. See [LICENSE](LICENSE).
